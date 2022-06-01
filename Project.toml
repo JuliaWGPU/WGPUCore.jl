@@ -1,0 +1,11 @@
+name = "WGPU"
+uuid = "53d714bf-0d76-4802-84b4-6cb75cca55f5"
+authors = ["littu "]
+version = "0.1.0"
+
+[deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+Eyeball = "ce36242b-ad83-4f84-8519-47cd8aeefd60"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+ModernGL = "66fc600b-dfda-50eb-8b99-91cfa97b1301"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
