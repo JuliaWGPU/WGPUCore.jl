@@ -1404,7 +1404,7 @@ end
 function readBuffer(gpuDevice, buffer, bufferOffset, size)
 	# TODO more implementation is required
 	# Took shortcut
-	usage = getBufferUsage(["CopyDst", "MapRead"])
+	usage = ["CopyDst", "MapRead"]
 	tmpBuffer = WGPU.createBuffer(" ", 
 								gpuDevice, 
 								size, 
