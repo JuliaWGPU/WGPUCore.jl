@@ -1,6 +1,7 @@
 ## Load WGPU
 using WGPU
-
+using WGPU: defaultInit, partialInit, pointerRef
+using WGPU_jll
 ## Constants
 numbers = UInt32[1,2,3,4]
 
@@ -13,6 +14,33 @@ const height = 200
 
 println("Current Version : $(wgpuGetVersion())")
 
+
+
+function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
+		if logLevel == WGPULogLevel_Error
+				level_str = "ERROR"
+		elseif logLevel == WGPULogLevel_Warn
+				level_str = "WARN"
+		elseif logLevel == WGPULogLevel_Info
+				level_str = "INFO"
+		elseif logLevel == WGPULogLevel_Debug
+				level_str = "DEBUG"
+		elseif logLevel == WGPULogLevel_Trace
+				level_str = "TRACE"
+		else
+				level_str = "UNKNOWN LOG LEVEL"
+		end
+        println("$(level_str) $(unsafe_string(msg))")
+end
+
+function SetLogLevel(loglevel::WGPULogLevel)
+	logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
+	wgpuSetLogCallback(logcallback)
+	@info "Setting Log level : $loglevel"
+	wgpuSetLogLevel(loglevel)
+end
+
+
 logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
 
 wgpuSetLogCallback(logcallback)
@@ -24,7 +52,7 @@ adapter = Ref(WGPUAdapter())
 device = Ref(WGPUDevice())
 
 
-adapterOptions = Ref(defaultInit(WGPURequestAdapterOptions))
+adapterOptions = Ref(WGPU.defaultInit(WGPURequestAdapterOptions))
 
 function request_adapter_callback(
 				a::WGPURequestAdapterStatus,
@@ -255,7 +283,7 @@ print(asyncstatus[])
 wgpuDevicePoll(device[], true)
 
 ## times
-times = convert(Ptr{WGPUColor}, wgpuBufferGetMappedRange(outputBuffer, 0, bufferSize))
+times = convert(Ptr{UInt8}, wgpuBufferGetMappedRange(outputBuffer, 0, bufferSize))
 
 ## result
 for i in 1:width*height

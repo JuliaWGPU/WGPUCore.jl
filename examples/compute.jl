@@ -1,5 +1,7 @@
 ## Load WGPU
 using WGPU
+using WGPU: defaultInit, partialInit, pointerRef
+using WGPU_jll
 
 ## Constants
 
@@ -11,46 +13,6 @@ const DEFAULT_ARRAY_SIZE = 256
 
 const width = 200
 const height = 200
-
-## default inits for non primitive types
-
-defaultInit(::Type{T}) where T<:Number = T(0)
-
-defaultInit(::Type{T}) where T = begin
-		if isprimitivetype(T)
-				return T(0)
-		else
-				ins = []
-				for t = fieldnames(T)
-						push!(ins, defaultInit(fieldtype(T, t)))
-				end
-				return T(ins...)
-		end
-end
-
-
-defaultInit(::Type{WGPUNativeFeature}) = WGPUNativeFeature(0x10000000)
-
-defaultInit(::Type{WGPUSType}) = WGPUSType(6)
-
-defaultInit(::Type{T}) where T<:Ptr{Nothing} = Ptr{Nothing}()
-
-defaultInit(::Type{Array{T, N}}) where T where N = zeros(T, DEFAULT_ARRAY_SIZE)
-
-defaultInit(::Type{WGPUPowerPreference}) = WGPUPowerPreference(1)
-
-function partialInit(target::Type{T}; fields...) where T
-		ins = []
-		inPairs = pairs(fields)
-		for field in fieldnames(T)
-				if field in keys(inPairs)
-					push!(ins, inPairs[field])
-				else
-					push!(ins, defaultInit(fieldtype(T, field)))
-				end
-		end
-		return T(ins...)
-end
 
 ## Print current version
 
@@ -154,16 +116,16 @@ wgpuAdapterRequestDevice(
 
                  
 ##
-b = read("examples/shader.wgsl")  
+b = read("WGPU.jl/examples/shader.wgsl")  
 wgslDescriptor = WGPUShaderModuleWGSLDescriptor(
         defaultInit(WGPUChainedStruct),
         pointer(b)
     )
- 
+
 ## WGSL loading
 
-function load_wgsl(filename)
-    b = read(filename)
+function load_wgsl(codeBuffer::Union{IOStream, IOBuffer})
+    b = read(codeBuffer)
     wgslDescriptor = Ref(WGPUShaderModuleWGSLDescriptor(
         defaultInit(WGPUChainedStruct),
         pointer(b)
@@ -177,10 +139,10 @@ function load_wgsl(filename)
 end
 
 
-shaderSource = Ref(load_wgsl("examples/shader.wgsl")[1])
+shaderSource = WGPU.loadWGSL(open("WGPU.jl/examples/shader.wgsl")) |> first
+
 
 ##
-
 
 shader = wgpuDeviceCreateShaderModule(
     device[],
@@ -230,12 +192,46 @@ bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
                 WGPUTextureBindingLayout;
             ),
             storageTexture = defaultInit(
-                WGPUStorageTextureBindingLayout;        
+                WGPUStorageTextureBindingLayout;
             )
            ))),
         entryCount = 1
        ))
    )
+
+######
+# a =	partialInit(
+	    # WGPUBindGroupLayoutEntry;
+	    # nextInChain = C_NULL,
+	    # binding = 1,
+	    # visibility = WGPUShaderStage_Compute,
+	    # buffer = partialInit(
+	        # WGPUBufferBindingLayout;
+	        # type=WGPUBufferBindingType_Storage
+	    # ),
+	    # sampler = defaultInit(
+	        # WGPUSamplerBindingLayout;
+	    # ),
+	    # texture = defaultInit(
+	        # WGPUTextureBindingLayout;
+	    # ),
+	    # storageTexture = defaultInit(
+	        # WGPUStorageTextureBindingLayout;
+	    # )
+	# )
+# 
+# ## BindGroupLayout
+# bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
+    # device[],
+    # Ref(partialInit(WGPUBindGroupLayoutDescriptor;
+        # label = pointer(Vector{UInt8}("Bind Group Layout")),
+        # entries = pointer(a),
+        # entryCount = 1
+       # )
+	# )
+# )
+
+#######
 
 ## BindGroup
 
