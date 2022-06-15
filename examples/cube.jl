@@ -1,11 +1,13 @@
 using OhMyREPL
 using Eyeball
 using WGPU
-
+using GeometryBasics
+using LinearAlgebra
+using Rotations
 using WGPU_jll
 using GLFW
 
-WGPU.SetLogLevel(WGPULogLevel_Debug)
+WGPU.SetLogLevel(WGPULogLevel_Off)
 
 shaderSource = Vector{UInt8}(
 	"""
@@ -79,7 +81,7 @@ vertexData =  cat([
        [-1, -1, 1, 1, 1, 0],
        [-1, -1, -1, 1, 1, 1],
        [1, -1, -1, 1, 0, 1],
-   ]..., dims=2) .|> Float32 |> flatten |> Ref
+   ]..., dims=2) .|> Float32
    
 indexData =   cat([
         [0, 1, 2, 2, 3, 0], 
@@ -100,12 +102,18 @@ textureData = cat([
 textureData = repeat(textureData, inner=(64, 64))
 textureSize = (size(textureData)..., 1)
 
-uniformData = zeros(Float32, (4, 4))
+# uniformData = zeros(Float32, (4, 4))
+# 
+# struct UniformSend
+	# transform::Matrix{Float32}
+# end
+
+uniformData = Matrix{Float32}(I, (4, 4))
 
 vertexBuffer = WGPU.createBufferWithData(
 	gpuDevice, 
 	"vertexBuffer", 
-	vertexData[], 
+	vertexData, 
 	"Vertex"
 )
 
@@ -119,8 +127,8 @@ indexBuffer = WGPU.createBufferWithData(
 uniformBuffer = WGPU.createBufferWithData(
 	gpuDevice, 
 	"uniformBuffer", 
-	uniformData |> flatten, 
-	"Uniform"
+	uniformData, 
+	["Uniform", "CopyDst"]
 )
 
 renderTextureFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter[])
@@ -144,7 +152,7 @@ dstLayout = [
 		:mipLevel => 0,
 		:origin => (0, 0, 0) .|> Float32
 	],
-	:textureData => textureData |> flatten |> Ref,
+	:textureData => textureData |> Ref,
 	:layout => [
 		:offset => 0,
 		:bytesPerRow => size(textureData) |> last, # TODO
@@ -274,30 +282,35 @@ renderPipeline = WGPU.createRenderPipelineFromPairs(
 	label=" "
 )
 
-
 function drawFunction()
 	WGPU.draw(renderPass, 3, 1, 0, 0)
 	WGPU.end(renderPass)
 end
 
 WGPU.attachDrawFunction(canvas, drawFunction)
-count = 0
+
 try
-#	while !GLFW.WindowShouldClose(canvas.windowRef[])
-		a1 = -0.3
+	while !GLFW.WindowShouldClose(canvas.windowRef[])
+		a1 = 0.3
 		a2 = time()
 		s = 0.6
-		count += 1
-		@info count
+		ortho = s*Matrix{Float32}(I, (3, 3))
+		rotxy = RotXY(a1, a2)
+		uniformData[1:3, 1:3] .= rotxy*ortho
+		tmpBuffer = WGPU.createBufferWithData(
+			gpuDevice, "rotionBuffer", uniformData, "CopySrc"
+		)
+		
 		nextTexture = WGPU.getCurrentTexture(presentContext) |> Ref
 		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
+		WGPU.copyBufferToBuffer(cmdEncoder, tmpBuffer, 0, uniformBuffer, 0, sizeof(uniformBuffer))
 		renderPassOptions = [
 			WGPU.GPUColorAttachments => [
 				:attachments => [
 					WGPU.GPUColorAttachment => [
 						:view => nextTexture[],
 						:resolveTarget => C_NULL,
-						:clearValue => (0.0, 0.0, 0.0, 1.0),
+						:clearValue => (0.2, 0.2, 0.3, 1.0),
 						:loadOp => WGPULoadOp_Clear,
 						:storeOp => WGPUStoreOp_Store,
 					],
@@ -306,12 +319,17 @@ try
 		]
 		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label= "Begin Render Pass")
 		WGPU.setPipeline(renderPass, renderPipeline)
-		WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex= 0, firstInstance=0)
-#		WGPU.endEncoder(renderPass)
-#		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
-#		WGPU.present(presentContext)
-#		GLFW.PollEvents()
-#	end
+		WGPU.setIndexBuffer(renderPass, indexBuffer, "Uint32")
+		WGPU.setVertexBuffer(renderPass, 0, vertexBuffer)
+		WGPU.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99 )
+		WGPU.drawIndexed(renderPass, indexBuffer.size/sizeof(UInt32); instanceCount = 1, firstIndex=0, baseVertex= 0, firstInstance=0, )
+		WGPU.endEncoder(renderPass)
+		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
+		WGPU.present(presentContext)
+		GLFW.PollEvents()
+
+	end
+
 finally
 	GLFW.DestroyWindow(canvas.windowRef[])
 end

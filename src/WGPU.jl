@@ -52,7 +52,7 @@ struct GPUBuffer
 	internal
 	device
 	size
-	usage	
+	usage
 end
 
 
@@ -284,7 +284,8 @@ function createBufferWithData(gpuDevice, label, data, usage)
 	src_ptr = pointer(data)
 	dst_ptr = wgpuBufferGetMappedRange(buffer.internal[], 0, bufSize)
 	dst_ptr = oftype(src_ptr, dst_ptr)
-	GC.@preserve src_ptr dst_ptr data unsafe_copyto!(dst_ptr, pointer(data), bufSize)
+	GC.gc(true)
+	GC.@preserve buffer src_ptr dst_ptr data unsafe_copyto!(dst_ptr, pointer(data), bufSize)
 	wgpuBufferUnmap(buffer.internal[])
 	return buffer
 end
@@ -753,7 +754,6 @@ end
 
 struct GPUVertexAttribute end
 
-
 function createEntry(::Type{GPUVertexAttribute}; args...)
 	a =	partialInit(
 		WGPUVertexAttribute;
@@ -766,38 +766,36 @@ end
 
 struct GPUVertexBufferLayout end
 
-@inline function createEntry(::Type{GPUVertexBufferLayout}; args...)
+function createEntry(::Type{GPUVertexBufferLayout}; args...)
 	argsRef = args
-	attributesArray = Ref(WGPUVertexAttribute[])
+	attrArray = WGPUVertexAttribute[]
+	attributesArray = Ref(attrArray)
 	attributes = Ref(args[:attributes])
 	for attribute in attributes[]
-		(ret, rest...) = @inline createEntry(GPUVertexAttribute; attribute.second...)
+		(ret, rest...) = createEntry(GPUVertexAttribute; attribute.second...)
 		push!(attributesArray[], ret[])
-		@info ret[]
+		@info "GPUVertexOutput" ret[]
 	end
-	@info args[:stepMode]
-	@info getEnum(WGPUVertexStepMode, args[:stepMode])
-	@info length(attributesArray[])
-	aref = GC.@preserve attributes args attributesArray partialInit(
+	aref = GC.@preserve attrArray partialInit(
 		WGPUVertexBufferLayout;
 		arrayStride = args[:arrayStride],
 		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]), # TODO default is "vertex"
 		attributes = pointer(attributesArray[]),
-		attributesCount = length(attributesArray[])
+		attributeCount = length(attributesArray[])
 	) |> Ref 
-	return (aref, attributesArray, attributes, argsRef)
+	return (aref, attrArray, attributesArray, attributes, argsRef)
 end
 
 struct GPUVertexState end
 
 function createEntry(::Type{GPUVertexState}; args...)
 	argsRef = Ref(args)
-	buffersDescriptorArray = Ref(WGPUVertexBufferLayout[])
+	bufferDescArray = WGPUVertexBufferLayout[]
+	buffersDescriptorArray = bufferDescArray |> Ref
 	buffers = Ref(args[:buffers])
 	for buffer in buffers[]
-		(req, rest...) = @inline createEntry(buffer.first; buffer.second...)
+		(req, rest...) = createEntry(buffer.first; buffer.second...)
 		push!(buffersDescriptorArray[], req[])
-		@info "BufferLayout" req[] 
 	end
 	if length(buffers[]) == 0
 		buffersArray = C_NULL
@@ -806,27 +804,28 @@ function createEntry(::Type{GPUVertexState}; args...)
 	end
 	entryPointArg = args[:entryPoint]
 
-	@info buffersDescriptorArray
-
+	GC.gc(true)
 	bufferLayout = buffersDescriptorArray[]
 	layout = unsafe_load(pointer(bufferLayout))
 
 	@info "bufferLayout" layout (fieldnames(typeof(layout))) (layout.stepMode) (layout.attributeCount)
 
-	t = unsafe_wrap(Array{WGPUVertexAttribute}, layout.attributes, 2) 
-	b = unsafe_load(layout.attributes)
+	t = GC.@preserve buffersArray unsafe_wrap(Array{WGPUVertexBufferLayout}, buffersArray, 1) 
+	b1 = GC.@preserve layout unsafe_load(layout.attributes, 1)
+	b2 = GC.@preserve layout unsafe_load(layout.attributes, 2)
 	
-	@info "AttributeArray" t
-	@info "AttributeArray" b
-	# @info unsafe_wrap(WGPUVertexAttribute, a.attributes)
-	aref = GC.@preserve buffers buffersDescriptorArray entryPointArg partialInit(
+	@info "BufferLayoutArray" t
+	@info "AttributeArray" b1 b2
+	
+	aref = GC.@preserve bufferDescArray partialInit(
 		WGPUVertexState;
 		_module = args[:_module].internal[],
 		entryPoint = pointer(entryPointArg),
-		buffers = buffersArray,
+		buffers = buffersDescriptorArray |> getindex |> pointer,
 		bufferCount = length(buffers[])
 	) |> Ref
-	return (aref, buffersDescriptorArray, buffers, buffersArray, argsRef, entryPointArg)
+	
+	return (aref, bufferDescArray, buffersDescriptorArray, buffers, buffersArray, argsRef, entryPointArg)
 end
 
 struct GPUPrimitiveState end
@@ -1230,6 +1229,25 @@ function setBindGroup(computePass::GPUComputePassEncoder,
 end
 
 
+function setBindGroup(renderPass::GPURenderPassEncoder, 
+						index::Int, 
+						bindGroup::GPUBindGroup, 
+						dynamicOffsetsData::Vector{UInt32}, 
+						start::Int, 
+						dataLength::Int)
+	offsets = pointer(dynamicOffsetsData)
+	
+	setbindgroup = wgpuRenderPassEncoderSetBindGroup(
+		renderPass.internal[],
+		index,
+		bindGroup.internal[],
+		length(dynamicOffsetsData),
+		offsets,
+	)
+	return nothing
+end
+
+
 function dispatchWorkGroups(computePass::GPUComputePassEncoder, countX, countY=1, countZ=1)
 	wgpuComputePassEncoderDispatch(
 		computePass.internal[],
@@ -1313,9 +1331,46 @@ function setVertexBuffer()
 end
 
 
-function setIndexBuffer()
-
+function setIndexBuffer(
+	rpe::GPURenderPassEncoder,
+	buffer,
+	indexFormat;
+	offset = 0,
+	size = nothing
+)
+	if size == nothing
+		size = buffer.size - offset
+	end
+	cIndexFormat = getEnum(WGPUIndexFormat, indexFormat)
+	wgpuRenderPassEncoderSetIndexBuffer(
+		rpe.internal[],
+		buffer.internal[],
+		cIndexFormat,
+		offset,
+		size
+	)
 end
+
+
+function setVertexBuffer(
+	rpe::GPURenderPassEncoder,
+	slot,
+	buffer,
+	offset = 0,
+	size = nothing
+)
+	if size == nothing
+		size = buffer.size - offset
+	end
+	wgpuRenderPassEncoderSetVertexBuffer(
+		rpe.internal[],
+		slot,
+		buffer.internal[],
+		offset,
+		size
+	)
+end
+
 
 
 function draw(
@@ -1334,6 +1389,24 @@ function draw(
 	)
 end
 
+
+function drawIndexed(
+	renderPassEncoder::GPURenderPassEncoder,
+	indexCount;
+	instanceCount = 1,
+	firstIndex = 0,
+	baseVertex = 0,
+	firstInstance = 0
+)
+	wgpuRenderPassEncoderDrawIndexed(
+		renderPassEncoder.internal[],
+		indexCount,
+		instanceCount,
+		firstIndex,
+		baseVertex,
+		firstInstance
+	)
+end
 
 function endEncoder(
 	renderPass::GPURenderPassEncoder
