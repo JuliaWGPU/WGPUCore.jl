@@ -83,11 +83,10 @@ function mapRead(gpuBuffer::GPUBuffer)
 	
 	asyncstatus[] = WGPUBufferMapAsyncStatus(0)
 
-	src_ptr = wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize)
-	src_ptr = convert(Ptr{UInt8}, src_ptr)
-	dst_ptr = pointer(data)
-	GC.@preserve src_ptr dst_ptr begin
-		unsafe_copyto!(dst_ptr, src_ptr, bufferSize)
+	src_ptr = convert(Ptr{UInt8}, wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize))
+	GC.@preserve src_ptr begin
+		src = unsafe_wrap(Vector{UInt8}, src_ptr, bufferSize; own=false)
+		data .= src
 	end
 	wgpuBufferUnmap(gpuBuffer.internal[])
 	return data
@@ -109,7 +108,7 @@ function mapWrite(gpuBuffer::GPUBuffer, data)
 	
 	asyncstatus[] = WGPUBufferMapAsyncStatus(0)
 
-	src_ptr = wgpuBufferGetMappedRange(gpuBuffer.internal, 0, bufferSize)
+	src_ptr = wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize)
 	src_ptr = convert(Ptr{UInt8}, src_ptr)
 	dst_ptr = pointer(data)
 	GC.@preserve src_ptr dst_ptr begin
@@ -206,11 +205,11 @@ function requestAdapter(; canvas=nothing, powerPreference = defaultInit(WGPUPowe
 end
 
 function requestDevice(gpuAdapter::GPUAdapter;
-		label="", 
+		label="DEVICE DESCRIPTOR", 
         requiredFeatures=[], 
         requiredLimits=[],
         defaultQueue=[],
-        tracepath = "")
+        tracepath = " ")
     # TODO trace path
     # Drop devices TODO
     # global backend
@@ -252,23 +251,23 @@ function requestDevice(gpuAdapter::GPUAdapter;
     h = GC.@preserve g unsafe_load(g)
     features = []
     deviceQueue = Ref(wgpuDeviceGetQueue(backend.device[]))
-    queue = GPUQueue(" ", deviceQueue, nothing)
+    queue = GPUQueue(" GPU QUEUE ", deviceQueue, nothing)
     GPUDevice("WGPU", backend.device, backend.adapter, features, h.limits, queue)
 #    return backend
 end
 
-function createBuffer(label, gpuDevice, size, usage, mappedAtCreation)
+function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
 	labelPtr = pointer(label)
     buffer = GC.@preserve labelPtr wgpuDeviceCreateBuffer(
     	gpuDevice.internal[],
     	partialInit(WGPUBufferDescriptor;
 			label = labelPtr,
-			size = size,
+			size = bufSize,
 			usage = getEnum(WGPUBufferUsage, usage),
 			mappedAtCreation = mappedAtCreation
     	) |> Ref
     ) |> Ref
-    GPUBuffer(label, buffer, gpuDevice, size, usage)
+    GPUBuffer(label, buffer, gpuDevice, bufSize, usage)
 end
 
 function getDefaultDevice(;backend=backend)
@@ -412,7 +411,7 @@ struct GPUSampler
 end
 
 function createSampler(gpuDevice;
-				label = " ", 
+				label = " SAMPLER DESCRIPTOR", 
 				addressModeU = WGPUAddressMode_ClampToEdge, 
 				addressModeV = WGPUAddressMode_ClampToEdge, 
 				addressModeW = WGPUAddressMode_ClampToEdge, 
@@ -672,7 +671,7 @@ function loadWGSL(buffer::Vector{UInt8}; name="UnnamedShader")
 	return (a, wgslDescriptor)
 end
 
-function loadWGSL(buffer::IOBuffer; name= " ")
+function loadWGSL(buffer::IOBuffer; name= " UnknownShader ")
 	b = read(buffer)
 	wgslDescriptor = Ref(WGPUShaderModuleWGSLDescriptor(
 		defaultInit(WGPUChainedStruct),
@@ -686,7 +685,7 @@ function loadWGSL(buffer::IOBuffer; name= " ")
 	return (a, wgslDescriptor)
 end
 
-function loadWGSL(file::IOStream; name= " ")
+function loadWGSL(file::IOStream; name= " UnknownShader ")
 	b = read(file)
 	wgslDescriptor = Ref(WGPUShaderModuleWGSLDescriptor(
 		defaultInit(WGPUChainedStruct),
@@ -695,7 +694,7 @@ function loadWGSL(file::IOStream; name= " ")
 	a = partialInit(
 		WGPUShaderModuleDescriptor;
 		nextInChain = pointer_from_objref(wgslDescriptor),
-		label = pointer(name == " " ? file.name : name)
+		label = pointer(name == "UnknownShader" ? file.name : name)
 	) |> Ref
 	return (a, wgslDescriptor)
 end
@@ -772,7 +771,7 @@ function createEntry(::Type{GPUVertexBufferLayout}; args...)
 		push!(attributesArray[], ret[])
 	end
 	attributesArrayPtr = pointer(attributesArray[])
-	aref = =partialInit(
+	aref = partialInit(
 		WGPUVertexBufferLayout;
 		arrayStride = args[:arrayStride],
 		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]), # TODO default is "vertex"
@@ -791,7 +790,7 @@ function createEntry(::Type{GPUVertexState}; args...)
 	origBuffers = args[:buffers]
 	entryPointArg = args[:entryPoint]
 	buffers = Ref(origBuffers)
-	GC.gc()
+
 	for buffer in buffers[]
 		(req, rest...) = createEntry(buffer.first; buffer.second...)
 		push!(buffersDescriptorArray[], req[])
@@ -801,6 +800,7 @@ function createEntry(::Type{GPUVertexState}; args...)
 	else
 		buffersArray = pointer(buffersDescriptorArray[])
 	end
+	GC.gc()
 	aref = GC.@preserve buffersArray begin
 		partialInit(
 			WGPUVertexState;
@@ -1033,7 +1033,7 @@ function createEntry(::Type{GPUDepthStencilAttachment}; args...)
 	return (C_NULL |> Ref, nothing)
 end
 
-function createRenderPassFromPairs(renderPipeline; label=" Render Pass ")
+function createRenderPassFromPairs(renderPipeline; label="RENDER PASS DESCRIPTOR")
 	renderArgs = Dict()
 	for config in renderPipeline
 		renderArgs[config.first] = createEntry(config.first; config.second...) |> first
@@ -1045,7 +1045,7 @@ function createRenderPassFromPairs(renderPipeline; label=" Render Pass ")
 		WGPURenderPassDescriptor;
 		label = pointer(label),
 		colorAttachments = pointer(colorAttachments[]),
-		colorAttachmentCount = length(colorAttachments),
+		colorAttachmentCount = length(colorAttachments[]),
 		depthStencilAttachment = depthStencilAttachment[]
 	) |> Ref
 	return (a, colorAttachments, label, depthStencilAttachment, renderArgs)
@@ -1087,7 +1087,7 @@ function createCommandEncoder(gpuDevice, label)
 end
 
 function beginComputePass(cmdEncoder::GPUCommandEncoder; 
-			label = " ", 
+			label = "COMPUTE PASS DESCRIPTOR ", 
 			timestampWrites = [])
 	computePass = wgpuCommandEncoderBeginComputePass(
 		cmdEncoder.internal[],
@@ -1099,7 +1099,7 @@ function beginComputePass(cmdEncoder::GPUCommandEncoder;
 	GPUComputePassEncoder(label, computePass, cmdEncoder)
 end
 
-function beginRenderPass(cmdEncoder::GPUCommandEncoder, renderPipelinePairs; label = " ")
+function beginRenderPass(cmdEncoder::GPUCommandEncoder, renderPipelinePairs; label = "BEGIN RENDER PASS ")
 	(req, rest...) = createRenderPassFromPairs(renderPipelinePairs; label = label)
 	renderPass = wgpuCommandEncoderBeginRenderPass(
 		cmdEncoder.internal[],
@@ -1147,8 +1147,8 @@ function copyTextureToTexture()
 
 end
 
-function finish(cmdEncoder::GPUCommandEncoder; label=" ")
-	cmdEncoderFinish = GC.@preserve label wgpuCommandEncoderFinish(
+function finish(cmdEncoder::GPUCommandEncoder; label=" CMD ENCODER COMMAND BUFFER")
+	cmdEncoderFinish = wgpuCommandEncoderFinish(
 		cmdEncoder.internal[],
 		Ref(partialInit(
 			WGPUCommandBufferDescriptor;
@@ -1189,16 +1189,14 @@ function setBindGroup(computePass::GPUComputePassEncoder,
 						dynamicOffsetsData::Vector{UInt32}, 
 						start::Int, 
 						dataLength::Int)
-	GC.@preserve dynamicOffsetsData begin
-		offsets = pointer(dynamicOffsetsData)
-		setbindgroup = wgpuComputePassEncoderSetBindGroup(
-			computePass.internal[],
-			index,
-			bindGroup.internal[],
-			length(dynamicOffsetsData),
-			offsets,
-		)
-	end
+	offsets = pointer(dynamicOffsetsData)
+	setbindgroup = wgpuComputePassEncoderSetBindGroup(
+		computePass.internal[],
+		index,
+		bindGroup.internal[],
+		length(dynamicOffsetsData),
+		offsets,
+	)
 	return nothing
 end
 
@@ -1209,17 +1207,15 @@ function setBindGroup(renderPass::GPURenderPassEncoder,
 						dynamicOffsetsData::Vector{UInt32}, 
 						start::Int, 
 						dataLength::Int)
-	GC.@preserve dynamicOffsetsData begin
-		offsets = pointer(dynamicOffsetsData)
-		
-		setbindgroup = wgpuRenderPassEncoderSetBindGroup(
-			renderPass.internal[],
-			index,
-			bindGroup.internal[],
-			length(dynamicOffsetsData),
-			offsets,
-		)
-	end
+	offsets = pointer(dynamicOffsetsData)
+	
+	setbindgroup = wgpuRenderPassEncoderSetBindGroup(
+		renderPass.internal[],
+		index,
+		bindGroup.internal[],
+		length(dynamicOffsetsData),
+		offsets,
+	)
 	return nothing
 end
 
@@ -1407,12 +1403,13 @@ function writeTexture(queue::GPUQueue; args...)
 		height = texSize[2],
 		depthOrArrayLayers = texSize[3]
 	) |> Ref
-	texData = args[:textureData][]
-	dataLength = length(texData)
-	GC.@preserve texData wgpuQueueWriteTexture(
+	texData = args[:textureData]
+	texDataPtr = pointer(texData[])
+	dataLength = length(texData[])
+	GC.@preserve texDataPtr wgpuQueueWriteTexture(
 		queue.internal[],
 		destination,
-		pointer(texData),
+		texDataPtr,
 		dataLength,
 		cDataLayout,
 		size
@@ -1428,12 +1425,12 @@ function readBuffer(gpuDevice, buffer, bufferOffset, size)
 	# TODO more implementation is required
 	# Took shortcut
 	usage = ["CopyDst", "MapRead"]
-	tmpBuffer = WGPU.createBuffer(" ", 
+	tmpBuffer = WGPU.createBuffer(" READ BUFFER TEMP ", 
 								gpuDevice, 
 								size, 
 								usage,
 								false)
-	commandEncoder =  createCommandEncoder(gpuDevice, " ")
+	commandEncoder =  createCommandEncoder(gpuDevice, " READ BUFFER COMMAND ENCODER ")
 	copyBufferToBuffer(commandEncoder, buffer, bufferOffset, tmpBuffer, 0, size)
 	submit(gpuDevice.queue, [finish(commandEncoder),])
 	data = mapRead(tmpBuffer)

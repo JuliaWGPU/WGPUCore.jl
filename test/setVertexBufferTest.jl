@@ -42,7 +42,7 @@ gpuDevice = WGPU.getDefaultDevice()
 	["Storage", "CopyDst", "CopySrc"]
 )
 
-Test.@test reshape(tmpData, (6, 24)) == vertexData
+Test.@test reshape(tmpData[], (6, 24)) == vertexData
 
 function fill_columns(x::Vector{T}, outSize; fill=nothing) where T
 	@assert (length(x) == reduce(*, outSize) && fill==nothing) "Dimension do not match; set 'fill' to create an array anyways."
