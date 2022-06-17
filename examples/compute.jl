@@ -4,22 +4,18 @@ using WGPU: defaultInit, partialInit, pointerRef
 using WGPU_jll
 
 ## Constants
-
 numbers = UInt32[1,2,3,4]
 
 const DEFAULT_ARRAY_SIZE = 256
 
 ## Init Window Size
-
 const width = 200
 const height = 200
 
 ## Print current version
-
 println("Current Version : $(wgpuGetVersion())")
 
 ## Set Log callbacks
-
 function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
 		if logLevel == WGPULogLevel_Error
 				level_str = "ERROR"
@@ -44,7 +40,6 @@ wgpuSetLogCallback(logcallback)
 wgpuSetLogLevel(WGPULogLevel(4))
 
 ## 
-
 adapter = Ref(WGPUAdapter())
 device = Ref(WGPUDevice())
 
@@ -63,7 +58,6 @@ end
 requestAdapterCallback = @cfunction(request_adapter_callback, Cvoid, (WGPURequestAdapterStatus, WGPUAdapter, Ptr{Cchar}, Ptr{Cvoid}))
 
 ## device callback
-
 function request_device_callback(
         a::WGPURequestDeviceStatus,
         b::WGPUDevice,
@@ -150,7 +144,6 @@ shader = wgpuDeviceCreateShaderModule(
 )
 
 ## StagingBuffer 
-
 stagingBuffer = wgpuDeviceCreateBuffer(device[], 
                       Ref(partialInit(WGPUBufferDescriptor;
                                    nextInChain = C_NULL,
@@ -159,8 +152,8 @@ stagingBuffer = wgpuDeviceCreateBuffer(device[],
                                    size = sizeof(numbers),
                                    mappedAtCreation = false
                                   )))
-## StorageBuffer 
 
+## StorageBuffer 
 storageBuffer = wgpuDeviceCreateBuffer(device[], 
                       Ref(partialInit(WGPUBufferDescriptor;
                                    nextInChain = C_NULL,
@@ -199,42 +192,7 @@ bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
        ))
    )
 
-######
-# a =	partialInit(
-	    # WGPUBindGroupLayoutEntry;
-	    # nextInChain = C_NULL,
-	    # binding = 1,
-	    # visibility = WGPUShaderStage_Compute,
-	    # buffer = partialInit(
-	        # WGPUBufferBindingLayout;
-	        # type=WGPUBufferBindingType_Storage
-	    # ),
-	    # sampler = defaultInit(
-	        # WGPUSamplerBindingLayout;
-	    # ),
-	    # texture = defaultInit(
-	        # WGPUTextureBindingLayout;
-	    # ),
-	    # storageTexture = defaultInit(
-	        # WGPUStorageTextureBindingLayout;
-	    # )
-	# )
-# 
-# ## BindGroupLayout
-# bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
-    # device[],
-    # Ref(partialInit(WGPUBindGroupLayoutDescriptor;
-        # label = pointer(Vector{UInt8}("Bind Group Layout")),
-        # entries = pointer(a),
-        # entryCount = 1
-       # )
-	# )
-# )
-
-#######
-
 ## BindGroup
-
 bindGroup = wgpuDeviceCreateBindGroup(
     device[],
     pointer_from_objref(Ref(partialInit(
@@ -251,7 +209,6 @@ bindGroup = wgpuDeviceCreateBindGroup(
 
 
 ## bindGroupLayouts 
-
 bindGroupLayouts = [bindGroupLayout,]
 
 ## Pipeline Layout
@@ -264,17 +221,8 @@ pipelineLayout = wgpuDeviceCreatePipelineLayout(
        )
     )))
 
-## TODO fix
-
-        compute = partialInit(
-             WGPUProgrammableStageDescriptor;
-             _module = shader,
-             entryPoint = pointer(Vector{UInt8}("main"))
-            )
-
 
 ## compute pipeline
-
 computePipeline = wgpuDeviceCreateComputePipeline(
     device[],
     pointer_from_objref(Ref(partialInit(
@@ -288,7 +236,6 @@ computePipeline = wgpuDeviceCreateComputePipeline(
             ))))
 
 ## encoder
-
 encoder = wgpuDeviceCreateCommandEncoder(device[],
     pointer_from_objref(Ref(partialInit(
                             WGPUCommandEncoderDescriptor;
@@ -302,7 +249,6 @@ computePass = wgpuCommandEncoderBeginComputePass(encoder,
                             WGPUComputePassDescriptor;
                             label = pointer(Vector{UInt8}("Compute Pass"))
                            ))))
-
 
 ## set pipeline
 wgpuComputePassEncoderSetPipeline(computePass, computePipeline)
@@ -325,13 +271,10 @@ cmdBuffer = wgpuCommandEncoderFinish(
 ## writeBuffer
 wgpuQueueWriteBuffer(queue, storageBuffer, 0, pointer(numbers), sizeof(numbers))
 
-
 ## submit queue
-
 wgpuQueueSubmit(queue, 1, Ref(cmdBuffer))
 
 ## MapAsync
-
 asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
 
 function readBufferMap(
@@ -348,7 +291,6 @@ wgpuBufferMapAsync(stagingBuffer, WGPUMapMode_Read, 0, sizeof(numbers), readbuff
 print(asyncstatus[])
 
 ## device polling
-
 wgpuDevicePoll(device[], true)
 
 ## times
@@ -358,14 +300,4 @@ times = convert(Ptr{UInt32}, wgpuBufferGetMappedRange(stagingBuffer, 0, sizeof(n
 for i in 1:length(numbers)
     println(numbers[i], " : " ,unsafe_load(times, i))
 end
-
-
-
-
-
-
-
-
-
-
 

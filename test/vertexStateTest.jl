@@ -102,10 +102,12 @@ attr2 = unsafe_load(buf.attributes, 2)
 
 buf1 = unsafe_wrap(Array{WGPU.WGPUVertexBufferLayout, 1}, vertexState.buffers, vertexState.bufferCount)
 
-Test.@test attrs == [attr1, attr2]
 
 Test.@testset "VertexAttribute" begin
 	Test.@test attr1 == vertexAttrib1 
 	Test.@test attrs == [attr1, attr2]
 	Test.@test attr2 == vertexAttrib2
 end
+
+using GLFW
+GLFW.DestroyWindow(canvas.windowRef[])

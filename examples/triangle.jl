@@ -23,7 +23,7 @@ shaderSource = Vector{UInt8}(
 	    let p: vec2<f32> = positions[index];
 
 	    var out: VertexOutput;
-	    out.pos = vec4<f32>(p, 0.0, 1.0);
+	    out.pos = vec4<f32>(sin(p), 0.0, 1.0);
 	    out.color = vec4<f32>(p, 0.5, 1.0);
 	    return out;
 	}
@@ -105,33 +105,6 @@ renderPipeline = WGPU.createRenderPipelineFromPairs(
 	renderpipelineOptions; 
 	label=" "
 )
-
-# renderPassOptions = [
-	# WGPU.GPUColorAttachments => [
-		# :attachments => [
-			# WGPU.GPUColorAttachment => [
-				# :view => WGPU.getCurrentTexture(presentContext),
-				# :resolveTarget => C_NULL,
-				# :clearValue => (0.0, 0.0, 0.0, 1.0),
-				# :loadOp => WGPULoadOp_Clear,
-				# :storeOp => WGPUStoreOp_Store,
-			# ],
-		# ]
-	# ],
-	# 
-	# # WGPU.GPUDepthStencilAttachment => [
-		# # :view => C_NULL, # TODO not defined yet,
-		# # :depthLoadOp => WGPU.getEnum(WGPULoadOp, "Undefined"), # TODO not sure
-		# # :depthStoreOp => WGPU.getEnum(WGPULoadOp, "Undefined"), # TODO
-		# # :depthClearValue => 0.0f0,
-		# # :depthReadOnly => false,
-		# # :stencilLoadOp => WGPU.getEnum(WGPULoadOp, "Undefined"), # Assuming
-		# # :stencilStoreOp => WGPU.getEnum(WGPUStoreOp, "Undefined"),
-		# # :stencilClearValue => 0.0f0,
-		# # :stencilReadOnly => false
-	# # ]
-# ]
-
 
 function drawFunction()
 	WGPU.draw(renderPass, 3, 1, 0, 0)

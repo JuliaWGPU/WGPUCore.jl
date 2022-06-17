@@ -6,6 +6,7 @@ using LinearAlgebra
 using Rotations
 using WGPU_jll
 using GLFW
+using StaticArrays
 
 WGPU.SetLogLevel(WGPULogLevel_Off)
 
@@ -56,34 +57,38 @@ cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothi
 
 flatten(x) = reshape(x, (:,))
 
-vertexData =  cat([
-       [-1, -1, 1, 1, 0, 0],
-       [1, -1, 1, 1, 1, 0],
-       [1, 1, 1, 1, 1, 1],
-       [-1, 1, 1, 1, 0, 1],
-       [-1, 1, -1, 1, 1, 0],
-       [1, 1, -1, 1, 0, 0],
-       [1, -1, -1, 1, 0, 1],
-       [-1, -1, -1, 1, 1, 1],
-       [1, -1, -1, 1, 0, 0],
-       [1, 1, -1, 1, 1, 0],
-       [1, 1, 1, 1, 1, 1],
-       [1, -1, 1, 1, 0, 1],
-       [-1, -1, 1, 1, 1, 0],
-       [-1, 1, 1, 1, 0, 0],
-       [-1, 1, -1, 1, 0, 1],
-       [-1, -1, -1, 1, 1, 1],
-       [1, 1, -1, 1, 1, 0],
-       [-1, 1, -1, 1, 0, 0],
-       [-1, 1, 1, 1, 0, 1],
-       [1, 1, 1, 1, 1, 1],
-       [1, -1, 1, 1, 0, 0],
-       [-1, -1, 1, 1, 1, 0],
-       [-1, -1, -1, 1, 1, 1],
-       [1, -1, -1, 1, 0, 1],
-   ]..., dims=2) .|> Float32
+tmpData =  cat([
+    [-1, -1, 1, 1, 0, 0],
+    [1, -1, 1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1],
+    [-1, 1, 1, 1, 0, 1],
+    [-1, 1, -1, 1, 1, 0],
+    [1, 1, -1, 1, 0, 0],
+    [1, -1, -1, 1, 0, 1],
+    [-1, -1, -1, 1, 1, 1],
+    [1, -1, -1, 1, 0, 0],
+    [1, 1, -1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1],
+    [1, -1, 1, 1, 0, 1],
+    [-1, -1, 1, 1, 1, 0],
+    [-1, 1, 1, 1, 0, 0],
+    [-1, 1, -1, 1, 0, 1],
+    [-1, -1, -1, 1, 1, 1],
+    [1, 1, -1, 1, 1, 0],
+    [-1, 1, -1, 1, 0, 0],
+    [-1, 1, 1, 1, 0, 1],
+    [1, 1, 1, 1, 1, 1],
+    [1, -1, 1, 1, 0, 0],
+    [-1, -1, 1, 1, 1, 0],
+    [-1, -1, -1, 1, 1, 1],
+    [1, -1, -1, 1, 0, 1],
+]..., dims=2) .|> Float32
    
-indexData =   cat([
+vertexData = MMatrix{6, 24, Float32}(undef)
+
+vertexData .= tmpData
+   
+tmpData =   cat([
         [0, 1, 2, 2, 3, 0], 
         [4, 5, 6, 6, 7, 4],  
         [8, 9, 10, 10, 11, 8], 
@@ -92,39 +97,43 @@ indexData =   cat([
         [20, 21, 22, 22, 23, 20], 
     ]..., dims=2) .|> UInt32
 
-textureData = cat([
+indexData = MMatrix{6, 6, UInt32}(undef)
+indexData .= tmpData
+    
+tmpData = cat([
         [50, 100, 150, 200],
         [100, 150, 200, 50],
         [150, 200, 50, 100],
         [200, 50, 100, 150],
     ]..., dims=2) .|> UInt8
+    
 
-textureData = repeat(textureData, inner=(64, 64))
+
+tmpData = repeat(tmpData, inner=(64, 64))
+textureData = MMatrix{256, 256, UInt8}(undef)
+textureData .= tmpData
 textureSize = (size(textureData)..., 1)
 
-# uniformData = zeros(Float32, (4, 4))
-# 
-# struct UniformSend
-	# transform::Matrix{Float32}
-# end
 
-uniformData = Matrix{Float32}(I, (4, 4))
+uniformData = ones(Float32, (4, 4)) |> Diagonal |> Matrix
 
-vertexBuffer = WGPU.createBufferWithData(
+
+(vertexBuffer, _) = WGPU.createBufferWithData(
 	gpuDevice, 
-	"vertexBuffer", 
+	"vbuf", 
 	vertexData, 
-	"Vertex"
+	["Vertex", "CopySrc"]
 )
 
-indexBuffer = WGPU.createBufferWithData(
+
+(indexBuffer, _) = WGPU.createBufferWithData(
 	gpuDevice, 
 	"indexBuffer", 
 	indexData |> flatten, 
 	"Index"
 )
 
-uniformBuffer = WGPU.createBufferWithData(
+(uniformBuffer, _) = WGPU.createBufferWithData(
 	gpuDevice, 
 	"uniformBuffer", 
 	uniformData, 
@@ -150,7 +159,7 @@ dstLayout = [
 	:dst => [
 		:texture => texture |> Ref,
 		:mipLevel => 0,
-		:origin => (0, 0, 0) .|> Float32
+		:origin => ((0, 0, 0) .|> Float32)
 	],
 	:textureData => textureData |> Ref,
 	:layout => [
@@ -202,8 +211,8 @@ bindings = [
 	]
 ]
 
-cBindingLayoutsList = Ref(WGPU.makeEntryList(bindingLayouts))
-cBindingsList = Ref(WGPU.makeBindGroupEntryList(bindings))
+cBindingLayoutsList = WGPU.makeEntryList(bindingLayouts) |> Ref
+cBindingsList = WGPU.makeBindGroupEntryList(bindings) |> Ref
 bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
 bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
@@ -216,6 +225,7 @@ end
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 
 presentContext = WGPU.getContext(canvas)
+
 WGPU.determineSize(presentContext)
 
 WGPU.config(presentContext, device=gpuDevice, format = renderTextureFormat)
@@ -226,7 +236,7 @@ renderpipelineOptions = [
 		:entryPoint => "vs_main",
 		:buffers => [
 			WGPU.GPUVertexBufferLayout => [
-				:arrayStride => 4*6,
+				:arrayStride => 6*4,
 				:stepMode => "Vertex",
 				:attributes => [
 					:attribute => [
@@ -276,61 +286,67 @@ renderpipelineOptions = [
 	]
 ]
 
-renderPipeline = WGPU.createRenderPipelineFromPairs(
+(renderPipeline, rest...) = WGPU.createRenderPipelineFromPairs(
 	gpuDevice, pipelineLayout, 
 	renderpipelineOptions; 
 	label=" "
 )
 
-function drawFunction()
-	WGPU.draw(renderPass, 3, 1, 0, 0)
-	WGPU.end(renderPass)
-end
 
-WGPU.attachDrawFunction(canvas, drawFunction)
-
+count = 0
+prevTime = time()
 try
 	while !GLFW.WindowShouldClose(canvas.windowRef[])
-		a1 = 0.3
+		count +=1 
+		@info count
+		a1 = 0.3f0
 		a2 = time()
-		s = 0.6
-		ortho = s*Matrix{Float32}(I, (3, 3))
+		s = 0.6f0
+		ortho = s.*Matrix{Float32}(I, (3, 3))
 		rotxy = RotXY(a1, a2)
 		uniformData[1:3, 1:3] .= rotxy*ortho
-		tmpBuffer = WGPU.createBufferWithData(
-			gpuDevice, "rotionBuffer", uniformData, "CopySrc"
-		)
 		
-		nextTexture = WGPU.getCurrentTexture(presentContext) |> Ref
-		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
-		WGPU.copyBufferToBuffer(cmdEncoder, tmpBuffer, 0, uniformBuffer, 0, sizeof(uniformBuffer))
+		(tmpBuffer, _) = WGPU.createBufferWithData(
+			gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc"
+		)
+		currentTextureView = WGPU.getCurrentTexture(presentContext) |> Ref
+		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "CMD ENCODER")
+		WGPU.copyBufferToBuffer(cmdEncoder, tmpBuffer, 0, uniformBuffer, 0, sizeof(uniformData))
+		
 		renderPassOptions = [
 			WGPU.GPUColorAttachments => [
 				:attachments => [
 					WGPU.GPUColorAttachment => [
-						:view => nextTexture[],
+						:view => currentTextureView[],
 						:resolveTarget => C_NULL,
-						:clearValue => (0.2, 0.2, 0.3, 1.0),
+						:clearValue => (abs(0.8f0*sin(a2)), abs(0.8f0*cos(a2)), 0.3f0, 1.0f0),
 						:loadOp => WGPULoadOp_Clear,
 						:storeOp => WGPUStoreOp_Store,
 					],
 				]
 			],
 		]
-		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label= "Begin Render Pass")
+		
+		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label= "BEGIN RENDER PASS")
+		
 		WGPU.setPipeline(renderPass, renderPipeline)
 		WGPU.setIndexBuffer(renderPass, indexBuffer, "Uint32")
 		WGPU.setVertexBuffer(renderPass, 0, vertexBuffer)
 		WGPU.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99 )
-		WGPU.drawIndexed(renderPass, indexBuffer.size/sizeof(UInt32); instanceCount = 1, firstIndex=0, baseVertex= 0, firstInstance=0, )
+		WGPU.drawIndexed(renderPass, Int32(indexBuffer.size/sizeof(UInt32)); instanceCount = 1, firstIndex=0, baseVertex= 0, firstInstance=0)
 		WGPU.endEncoder(renderPass)
 		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
 		WGPU.present(presentContext)
 		GLFW.PollEvents()
-
+		# dataDown = reinterpret(Float32, WGPU.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
+		# @info dataDown == vertexData
+		# @info dataDown
+		# @info (dataDown)
+		# tmpBuffer.internal = C_NULL
+		# println("FPS : $(1/(a2 - prevTime))")
+		prevTime = a2
 	end
 
 finally
 	GLFW.DestroyWindow(canvas.windowRef[])
 end
-

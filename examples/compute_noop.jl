@@ -22,7 +22,6 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-
 n = 20
 
 data = Array{UInt8, 1}(undef, n)
@@ -35,14 +34,28 @@ gpuDevice = WGPU.getDefaultDevice()
 
 shadercode = WGPU.loadWGSL(shaderSource) |> first
 
-cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing))
+cshader = WGPU.createShaderModule(
+	gpuDevice, 
+	"shadercode", 
+	shadercode, 
+	nothing, 
+	nothing
+) |> Ref
 
-buffer1 = WGPU.createBufferWithData(gpuDevice, "buffer1", data, "Storage")
+(buffer1, _) = WGPU.createBufferWithData(
+	gpuDevice, 
+	"buffer1", 
+	data, 
+	"Storage"
+)
 
-buffer2 = WGPU.createBuffer("buffer2", gpuDevice, 
-							sizeof(data), 
-							["Storage", "CopySrc"],
-							false)
+buffer2 = WGPU.createBuffer(
+	"buffer2", 
+	gpuDevice, 
+	sizeof(data), 
+	["Storage", "CopySrc"],
+	false
+)
 
 bindingLayouts = [
 	WGPU.WGPUBufferEntry => [
@@ -92,3 +105,5 @@ WGPU.dispatchWorkGroups(computePass, n, 1, 1)
 WGPU.endComputePass(computePass)
 WGPU.submit(gpuDevice.queue, [WGPU.finish(commandEncoder),])
 WGPU.readBuffer(gpuDevice, buffer2, 0, sizeof(data))
+
+
