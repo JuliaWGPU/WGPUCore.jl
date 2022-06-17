@@ -57,7 +57,7 @@ cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothi
 
 flatten(x) = reshape(x, (:,))
 
-tmpData =  cat([
+vertexData =  cat([
     [-1, -1, 1, 1, 0, 0],
     [1, -1, 1, 1, 1, 0],
     [1, 1, 1, 1, 1, 1],
@@ -84,11 +84,8 @@ tmpData =  cat([
     [1, -1, -1, 1, 0, 1],
 ]..., dims=2) .|> Float32
    
-# vertexData = MMatrix{6, 24, Float32}(undef)
 
-vertexData = tmpData
-   
-tmpData =   cat([
+indexData =   cat([
         [0, 1, 2, 2, 3, 0], 
         [4, 5, 6, 6, 7, 4],  
         [8, 9, 10, 10, 11, 8], 
@@ -97,9 +94,7 @@ tmpData =   cat([
         [20, 21, 22, 22, 23, 20], 
     ]..., dims=2) .|> UInt32
 
-# indexData = MMatrix{6, 6, UInt32}(undef)
-indexData = tmpData
-    
+
 tmpData = cat([
         [50, 100, 150, 200],
         [100, 150, 200, 50],
@@ -109,9 +104,7 @@ tmpData = cat([
     
 
 
-tmpData = repeat(tmpData, inner=(64, 64))
-textureData = MMatrix{256, 256, UInt8}(undef)
-textureData .= tmpData
+textureData = repeat(tmpData, inner=(64, 64))
 textureSize = (size(textureData)..., 1)
 
 
@@ -121,10 +114,11 @@ uniformData = ones(Float32, (4, 4)) |> Diagonal |> Matrix
 (vertexBuffer, _) = WGPU.createBufferWithData(
 	gpuDevice, 
 	"vertexBuffer", 
-	vertexData |> flatten, 
+	vertexData, 
 	["Vertex", "CopySrc"]
 )
 
+# GC.gc(true)
 
 (indexBuffer, _) = WGPU.createBufferWithData(
 	gpuDevice, 
@@ -338,7 +332,7 @@ try
 		dataDown = reinterpret(Float32, WGPU.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
 		@info sum(dataDown .== vertexData |> flatten)
 		@info dataDown
-		# println("FPS : $(1/(a2 - prevTime))")
+		println("FPS : $(1/(a2 - prevTime))")
 		WGPU.destroy(tmpBuffer)
 		WGPU.destroy(currentTextureView[])
 		prevTime = a2

@@ -276,15 +276,16 @@ function getDefaultDevice(;backend=backend)
 	return defaultDevice
 end
 
+flatten(x) = reshape(x, (:,))
+
 function createBufferWithData(gpuDevice, label, data, usage)
 	dataRef = data |> Ref #phantom reference
 	bufSize = sizeof(data)
 	buffer = createBuffer(label, gpuDevice, bufSize, usage, true)
-	src_ptr = pointer(data)
-	dst_ptr = wgpuBufferGetMappedRange(buffer.internal[], 0, bufSize)
-	dst_ptr = oftype(src_ptr, dst_ptr)
-	GC.@preserve src_ptr dst_ptr begin
-		unsafe_copyto!(dst_ptr, src_ptr, bufSize)
+	dstPtr = convert(Ptr{UInt8}, wgpuBufferGetMappedRange(buffer.internal[], 0, bufSize))
+	GC.@preserve dstPtr begin
+		dst = unsafe_wrap(Vector{UInt8}, dstPtr, bufSize)
+		dst .= reinterpret(UInt8, data) |> flatten
 	end
 	wgpuBufferUnmap(buffer.internal[])
 	return (buffer, dataRef, label)
