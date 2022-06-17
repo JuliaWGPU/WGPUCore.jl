@@ -76,32 +76,27 @@ vertexAttrib1 = WGPU.createEntry(
 	format="Float32x4",
 	offset=0,
 	shaderLocation=0
-) |> first |> getindex
+).internal[]
+
 
 vertexAttrib2 = WGPU.createEntry(
 	WGPU.GPUVertexAttribute; 
 	format="Float32x2",
 	offset=16,
 	shaderLocation=1
-) |> first |> getindex
+).internal[]
 
 
 vertexState = WGPU.createEntry(
 	WGPU.GPUVertexState;
 	vertexStateOptions...
-) |> first |> getindex
+)
 
-
-buf = unsafe_load(vertexState.buffers)
-
+buf = unsafe_load(vertexState.internal[].buffers)
 attrs = unsafe_wrap(Array{WGPU.WGPUVertexAttribute, 1}, buf.attributes, buf.attributeCount)
-
-
 attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
-
-buf1 = unsafe_wrap(Array{WGPU.WGPUVertexBufferLayout, 1}, vertexState.buffers, vertexState.bufferCount)
-
+buf1 = unsafe_wrap(Array{WGPU.WGPUVertexBufferLayout, 1}, vertexState.internal[].buffers, vertexState.internal[].bufferCount)
 
 Test.@testset "VertexAttribute" begin
 	Test.@test attr1 == vertexAttrib1 

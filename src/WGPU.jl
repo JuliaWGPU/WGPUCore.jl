@@ -748,74 +748,90 @@ function createComputePipeline(gpuDevice, label, pipelinelayout, computeStage)
 	GPUComputePipeline(label, Ref(computepipeline), gpuDevice, pipelinelayout)
 end
 
-struct GPUVertexAttribute end
+struct GPUVertexAttribute 
+	internal
+	other
+end
 
 function createEntry(::Type{GPUVertexAttribute}; args...)
-	a =	partialInit(
+	aRef =	partialInit(
 		WGPUVertexAttribute;
 		format = getEnum(WGPUVertexFormat, args[:format]),
 		offset = args[:offset],
 		shaderLocation = args[:shaderLocation]
 	) |> Ref
-	return (a, args)
+	return GPUVertexAttribute(aRef, nothing)
 end
 
-struct GPUVertexBufferLayout end
+struct GPUVertexBufferLayout 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUVertexBufferLayout}; args...)
 	argsRef = args
 	attrArray = WGPUVertexAttribute[]
-	attributesArray = Ref(attrArray)
+	attrArrayObjs = GPUVertexAttribute[]
 	attributes = Ref(args[:attributes])
+	
 	for attribute in attributes[]
-		(ret, rest...) = createEntry(GPUVertexAttribute; attribute.second...)
-		push!(attributesArray[], ret[])
+		obj = createEntry(GPUVertexAttribute; attribute.second...)
+		push!(attrArrayObjs, obj)
+		push!(attrArray, obj.internal[])
 	end
-	attributesArrayPtr = pointer(attributesArray[])
-	aref = partialInit(
+	attributesArrayPtr = pointer(attrArray)
+	aref = GC.@preserve attributesArrayPtr partialInit(
 		WGPUVertexBufferLayout;
 		arrayStride = args[:arrayStride],
 		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]), # TODO default is "vertex"
 		attributes = attributesArrayPtr,
-		attributeCount = length(attributesArray[])
-	) |> Ref 
-	return (aref, attrArray, attributesArray, attributes, argsRef)
+		attributeCount = length(attrArray)
+	) |> Ref
+	return GPUVertexBufferLayout(aref, (Ref(attrArrayObjs), Ref(attrArray)))
 end
 
-struct GPUVertexState end
+struct GPUVertexState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUVertexState}; args...)
 	argsRef = Ref(args)
 	bufferDescArray = WGPUVertexBufferLayout[]
-	buffersDescriptorArray = bufferDescArray |> Ref
-	origBuffers = args[:buffers]
+	buffersArray = GPUVertexBufferLayout[]
+	buffers = args[:buffers]
 	entryPointArg = args[:entryPoint]
-	buffers = Ref(origBuffers)
+	for buffer in buffers
+		obj = createEntry(buffer.first; buffer.second...)
+		push!(buffersArray, obj)
+		push!(bufferDescArray, obj.internal[])
+	end
+	buffersArray = C_NULL
+	if length(bufferDescArray) > 0
+		buffersArray = pointer(bufferDescArray)
+	end
 
-	for buffer in buffers[]
-		(req, rest...) = createEntry(buffer.first; buffer.second...)
-		push!(buffersDescriptorArray[], req[])
-	end
-	if length(buffers[]) == 0
-		buffersArray = C_NULL
-	else
-		buffersArray = pointer(buffersDescriptorArray[])
-	end
-	GC.gc()
-	aref = GC.@preserve buffersArray begin
+	entryPointPtr = pointer(entryPointArg)
+
+	a = GC.@preserve entryPointPtr  buffersArray begin
 		partialInit(
 			WGPUVertexState;
 			_module = args[:_module].internal[],
-			entryPoint = pointer(entryPointArg),
+			entryPoint = entryPointPtr,
 			buffers = buffersArray,
-			bufferCount = length(buffers[])
-		) |> Ref
+			bufferCount = length(buffers)
+		)
 	end
+	
+	aref = a |> Ref
 		
-	return (aref, bufferDescArray, buffersDescriptorArray, buffers, buffersArray, argsRef, entryPointArg)
+	return GPUVertexState(aref, (Ref(buffersArray), Ref(bufferDescArray)))
 end
 
-struct GPUPrimitiveState end
+struct GPUPrimitiveState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUPrimitiveState}; args...)
 	a = partialInit(
@@ -825,10 +841,13 @@ function createEntry(::Type{GPUPrimitiveState}; args...)
 		frontFrace = getEnum(WGPUFrontFace, args[:frontFace]), # TODO 
 		cullMode = getEnum(WGPUCullMode, args[:cullMode])
 	) |> Ref
-	return (a, nothing)
+	return GPUPrimitiveState(a, nothing)
 end
 
-struct GPUStencilFaceState end
+struct GPUStencilFaceState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUStencilFaceState}; args...)
 	a = partialInit(
@@ -838,10 +857,13 @@ function createEntry(::Type{GPUStencilFaceState}; args...)
 		depthFailOp = args[:depthFailOp],
 		passOp = args[:passOp]
 	) |> Ref
-	return (a, nothing)
+	return GPUStencilFaceState(a, nothing)
 end
 
-struct GPUDepthStencilState end
+struct GPUDepthStencilState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUDepthStencilState}; args...)
 	a = nothing
@@ -854,10 +876,13 @@ function createEntry(::Type{GPUDepthStencilState}; args...)
 	else
 		a = C_NULL |> Ref
 	end
-	return (a, nothing)
+	return GPUDepthStencilState(a, nothing)
 end
 
-struct GPUMultiSampleState end
+struct GPUMultiSampleState
+	internal
+	others
+end
 
 function createEntry(::Type{GPUMultiSampleState}; args...)
 	a = partialInit(
@@ -866,10 +891,13 @@ function createEntry(::Type{GPUMultiSampleState}; args...)
 		mask = args[:mask],
 		alphaToCoverageEnabled = args[:alphaToCoverageEnabled]
 	) |> Ref
-	return (a, nothing)
+	return GPUMultiSampleState(a, nothing)
 end
 
-struct GPUBlendComponent end
+struct GPUBlendComponent
+	GPUBlendComponent
+	others
+end
 
 function createEntry(::Type{GPUBlendComponent}; args...)
 	a = partialInit(
@@ -878,10 +906,13 @@ function createEntry(::Type{GPUBlendComponent}; args...)
 		dstFactor=getEnum(WGPUBlendFactor, args[:dstFactor]),
 		operation=getEnum(WGPUBlendOperation, args[:operation])
 	) |> Ref
-	return (a, nothing)
+	return GPUBlendComponent(a, nothing)
 end
 
-struct GPUBlendState end
+struct GPUBlendState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUBlendState}; args...)
 	a = partialInit(
@@ -889,10 +920,13 @@ function createEntry(::Type{GPUBlendState}; args...)
 		color = args[:color],
 		alpha = args[:alpha]
 	) |> Ref
-	return (a, nothing)
+	return GPUBlendState(a, nothing)
 end
 
-struct GPUColorTargetState end
+struct GPUColorTargetState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUColorTargetState}; args...)
 	colorEntry = (createEntry(GPUBlendComponent; args[:color]...) |> first)[]
@@ -907,18 +941,23 @@ function createEntry(::Type{GPUColorTargetState}; args...)
 		blend = blend,
 		writeMask = kargs[:writeMask]
 	) |> Ref
-	return (aref, blend, colorEntry, alphaEntry, kargs)
+	return GPUColorTargetState(aref, (blend, colorEntry, alphaEntry, kargs))
 end
 
-struct GPUFragmentState end
+struct GPUFragmentState 
+	internal
+	others
+end
 
 function createEntry(::Type{GPUFragmentState}; args...)
 	argsRef = Ref(args)
 	targets = args[:targets]
 	ctargets = WGPUColorTargetState[] |> Ref
+	targetObjs = GPUFragmentState[]
 	for target in targets
-		(required, leftover...) = createEntry(target.first; target.second...)
-		push!(ctargets[], required[])
+		obj = createEntry(target.first; target.second...)
+		push!(targetObjs, obj)
+		push!(ctargets[], obj.internal[])
 	end
 	entryPointArg = args[:entryPoint]
 	entryPointRef = Ref(pointer(entryPointArg))
@@ -930,7 +969,7 @@ function createEntry(::Type{GPUFragmentState}; args...)
 		targetCount = length(ctargets[])
 	) |> Ref
 	aptrRef = aref |> pointer_from_objref |> Ref
-	return (aptrRef, aref, ctargets, targets, argsRef, entryPointArg, entryPointRef)
+	return GPUFragment(aptrRef, (aref, ctargets, targetObjs, argsRef, entryPointArg, entryPointRef))
 end
 
 struct GPURenderPipeline
@@ -949,8 +988,8 @@ function createRenderPipelineFromPairs(
 	renderArgs = Ref(Dict())
 	renderArgsRef = renderArgs[]
 	for state in renderpipeline
-		(req, rest...) = createEntry(state.first; state.second...)
-		renderArgsRef[state.first] = req
+		obj = createEntry(state.first; state.second...)
+		renderArgsRef[state.first] = obj.internal[]
 	end
 	a = createRenderPipeline(
 		gpuDevice,
@@ -980,20 +1019,30 @@ function createRenderPipeline(
 			WGPURenderPipelineDescriptor;
 			label = pointer(label),
 			layout = pipelinelayout.internal[],
-			vertex = vertexState[],
-			primitive = primitiveState[],
-			depthStencil = depthStencilState[],
-			multisample = multiSampleState[],
-			fragment = fragmentState[]
+			vertex = vertexState.internal[],
+			primitive = primitiveState.internal[],
+			depthStencil = depthStencilState.internal[],
+			multisample = multiSampleState.internal[],
+			fragment = fragmentState.internal[]
 		) |> Ref
 	) |> Ref
 	return GPURenderPipeline(label, renderpipeline, gpuDevice, pipelinelayout)
 end
 
-struct GPUColorAttachments end
-struct GPUColorAttachment end
+struct GPUColorAttachments 
+	internal
+	others
+end
 
-struct GPUDepthStencilAttachment end
+struct GPUColorAttachment 
+	internal
+	others
+end
+
+struct GPUDepthStencilAttachment 
+	internal
+	others
+end
 
 struct GPURenderPassEncoder
 	label
@@ -1013,17 +1062,19 @@ function createEntry(::Type{GPUColorAttachment}; args...)
 		loadOp = args[:loadOp],
 		storeOp = args[:storeOp]
 	) |> Ref
-	return (a, argsRef, args, textureView)
+	return GPUColorAttachment(a, (argsRef, args, textureView))
 end
 
 function createEntry(::Type{GPUColorAttachments}; args...)
 	argsRef = args |> Ref
 	attachments = WGPURenderPassColorAttachment[] |> Ref
+	attachmentObjs = GPUColorAttachment[]
 	for attachment in args[:attachments]
-		(req, rest...) = createEntry(attachment.first; attachment.second...)
-		push!(attachments[], req[])
+		obj = createEntry(attachment.first; attachment.second...)
+		push!(attachmentObjs, obj)
+		push!(attachments[], obj.internal[])
 	end
-	return (attachments, nothing)
+	return GPUColorAttachments(attachments, (attachments, attachmentObjs))
 end
 
 function createEntry(::Type{GPUDepthStencilAttachment}; args...)
@@ -1031,13 +1082,13 @@ function createEntry(::Type{GPUDepthStencilAttachment}; args...)
 	if length(args) > 0
 		# TODO
 	end
-	return (C_NULL |> Ref, nothing)
+	return GPUDepthStencilAttachment(C_NULL |> Ref, nothing)
 end
 
 function createRenderPassFromPairs(renderPipeline; label="RENDER PASS DESCRIPTOR")
 	renderArgs = Dict()
 	for config in renderPipeline
-		renderArgs[config.first] = createEntry(config.first; config.second...) |> first
+		renderArgs[config.first] = createEntry(config.first; config.second...).internal
 	end
 	# return renderArgs
 	colorAttachments = renderArgs[GPUColorAttachments]

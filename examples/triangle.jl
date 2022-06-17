@@ -100,7 +100,7 @@ renderpipelineOptions = [
 	]
 ]
 
-renderPipeline = WGPU.createRenderPipelineFromPairs(
+(renderPipeline, rest...) = WGPU.createRenderPipelineFromPairs(
 	gpuDevice, pipelineLayout, 
 	renderpipelineOptions; 
 	label=" "

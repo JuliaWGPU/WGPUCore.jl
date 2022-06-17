@@ -118,7 +118,6 @@ uniformData = ones(Float32, (4, 4)) |> Diagonal |> Matrix
 	["Vertex", "CopySrc"]
 )
 
-# GC.gc(true)
 
 (indexBuffer, _) = WGPU.createBufferWithData(
 	gpuDevice, 
