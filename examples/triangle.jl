@@ -100,10 +100,12 @@ renderpipelineOptions = [
 	]
 ]
 
-(renderPipeline, rest...) = WGPU.createRenderPipelineFromPairs(
+# renderPipelineLabel = "RENDER PIPE LABEL "
+
+renderPipeline =  WGPU.createRenderPipeline(
 	gpuDevice, pipelineLayout, 
 	renderpipelineOptions; 
-	label=" "
+	label = "RENDER PIPE LABEL "
 )
 
 function drawFunction()

@@ -93,10 +93,10 @@ vertexState = WGPU.createEntry(
 )
 
 buf = unsafe_load(vertexState.internal[].buffers)
-attrs = unsafe_wrap(Array{WGPU.WGPUVertexAttribute, 1}, buf.attributes, buf.attributeCount)
+attrs = unsafe_wrap(Vector{WGPU.WGPUVertexAttribute}, buf.attributes, buf.attributeCount)
 attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
-buf1 = unsafe_wrap(Array{WGPU.WGPUVertexBufferLayout, 1}, vertexState.internal[].buffers, vertexState.internal[].bufferCount)
+buf1 = unsafe_wrap(Vector{WGPU.WGPUVertexBufferLayout}, vertexState.internal[].buffers, vertexState.internal[].bufferCount)
 
 Test.@testset "VertexAttribute" begin
 	Test.@test attr1 == vertexAttrib1 
