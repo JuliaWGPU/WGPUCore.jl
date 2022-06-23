@@ -4,7 +4,7 @@ using WGPU_jll
 using CEnum
 using CEnum:Cenum
 ## default inits for non primitive types
-
+weakRefs = WeakKeyDict() |> lock
 ## Set Log callbacks
 function getEnum(::Type{T}, query::String) where T <: Cenum
 	pairs = CEnum.name_value_pairs(T)
@@ -63,8 +63,19 @@ defaultInit(::Type{T}) where T = begin
 		for t = fieldnames(T)
 			push!(ins, defaultInit(fieldtype(T, t)))
 		end
-	        return T(ins...)
-        end
+		return T(ins...)
+		t = WGPURef{T}(T(ins...))
+		f(x) = begin
+			global DEBUG
+			if DEBUG==true
+				@warn "Finalizing WGPURef $x"
+			end
+			x = nothing
+		end
+		weakRefs[t] = ins
+		finalizer(f, t)
+		return t
+	end
 end
 
 
@@ -86,19 +97,56 @@ defaultInit(::Type{Tuple{T}}) where T = Tuple{T}(zeros(T))
 
 defaultInit(::Type{Ref{T}}) where T = Ref{T}()
 
-WeakRefs = Dict()
+weakRefs = WeakKeyDict()
+
+mutable struct WGPURef{T}
+	inner::Union{T, Nothing}
+end
+
+function Base.getproperty(t::WGPURef{T}, s::Symbol) where T
+	tmp = getfield(t::WGPURef{T}, :inner)
+	return getproperty(tmp, s)
+end
+
+function Base.convert(::Type{T}, w::WGPURef{T}) where T
+	return getfield(w, :inner)
+end
+
+function Base.getindex(w::WGPURef{T}) where T
+	return getfield(w, :inner)
+end
+
+function Base.setindex!(w::WGPURef{T}, value) where T
+	setfield!(w, :inner, convert(T, value))
+end
+
+function Base.unsafe_convert(::Type{Ptr{T}}, w::Base.RefValue{WGPURef{T}}) where T
+	return convert(Ptr{T}, Ref(getfield(w[], :inner)) |> pointer_from_objref)
+end
 
 function partialInit(target::Type{T}; fields...) where T
 	ins = []
 	inPairs = pairs(fields)
 	for field in fieldnames(T)
        	if field in keys(inPairs)
-                push!(ins, inPairs[field])
+            push!(ins, inPairs[field])
 		else
-		        push!(ins, defaultInit(fieldtype(T, field)))
+	        push!(ins, defaultInit(fieldtype(T, field)))
 		end
 	end
-	return T(ins...)
+	t = WGPURef{T}(T(ins...))
+	f(x) = begin
+		@warn "Finalizing WGPURef $x"
+		x.inner = nothing
+		x = nothing
+	end
+	if islocked(weakRefs)
+		unlock(weakRefs)
+		weakRefs[t] = ins
+		lock(weakRefs)
+	end
+	finalizer(f, t)
+	return t
 end
 
 ## few more helper functions 

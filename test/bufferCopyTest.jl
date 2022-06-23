@@ -16,6 +16,8 @@ end
 
 gpuDevice = WGPU.getDefaultDevice()
 
+GC.gc()
+
 (buffer1, _) = WGPU.createBufferWithData(
 	gpuDevice, 
 	"buffer1", 
@@ -30,6 +32,7 @@ buffer2 = WGPU.createBuffer(
 	["Storage", "CopySrc", "CopyDst"],
 	false
 )
+
 commandEncoder = WGPU.createCommandEncoder(gpuDevice, "Command Encoder")
 
 WGPU.copyBufferToBuffer(commandEncoder, buffer1, 0, buffer2, 0, sizeof(data))
@@ -44,3 +47,11 @@ Test.@test data == dataDown
 
 WGPU.destroy(buffer1)
 WGPU.destroy(buffer2)
+
+GC.gc(true)
+
+# gpuDevice = nothing
+
+WGPU.destroy(gpuDevice[])
+
+

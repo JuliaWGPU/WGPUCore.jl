@@ -4,6 +4,7 @@ using Test
 using WGPU_jll
 using GLFW
 
+WGPU.setDebugMode(false)
 WGPU.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}(
@@ -56,7 +57,7 @@ else
 end
 
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter[])
+swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
 
 
 renderpipelineOptions = [
@@ -167,6 +168,22 @@ renderPipeline =  createRenderPipeline(
 	label = "RENDER PIPE LABEL "
 )
 
+vertexAttrib1 = WGPU.createEntry(
+	WGPU.GPUVertexAttribute; 
+	format="Float32x4",
+	offset=0,
+	shaderLocation=0
+).internal[]
+
+
+vertexAttrib2 = WGPU.createEntry(
+	WGPU.GPUVertexAttribute; 
+	format="Float32x2",
+	offset=16,
+	shaderLocation=1
+).internal[]
+
+
 Test.@testset "RenderPipeline" begin
 	renderFragment = renderPipeline[WGPU.GPUFragmentState]
 	fs = unsafe_load(renderFragment.internal[])
@@ -184,10 +201,21 @@ Test.@testset "RenderPipeline" begin
 
 	renderVertex = renderPipeline[WGPU.GPUVertexState]
 	vs = renderVertex.internal[]
-
+	buf = unsafe_load(vs.buffers)
+	attrs = unsafe_wrap(Vector{WGPU.WGPUVertexAttribute}, buf.attributes, buf.attributeCount)
+	attr1 = unsafe_load(buf.attributes, 1)
+	attr2 = unsafe_load(buf.attributes, 2)
+	buf1 = unsafe_wrap(Vector{WGPU.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
 	# check if buffers is alive
 	Test.@test vs.buffers != C_NULL
+	Test.@test attr1 == vertexAttrib1 
+	Test.@test attrs == [attr1, attr2]
+	Test.@test attr2 == vertexAttrib2
 
 end
+
+# renderPipeline = nothing
+
+GC.gc(true)
 
 GLFW.DestroyWindow(canvas.windowRef[])

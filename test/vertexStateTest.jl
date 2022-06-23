@@ -1,5 +1,9 @@
+GC.gc(true)
+
 using WGPU
 using Test
+
+WGPU.setDebugMode(false)
 
 WGPU.SetLogLevel(WGPU.WGPULogLevel_Debug)
 
@@ -46,7 +50,7 @@ shaderSource = Vector{UInt8}(
 canvas = WGPU.defaultInit(WGPU.GLFWX11Canvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
-cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+cshader = WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing) |> Ref;
 
 vertexStateOptions = [
 	:_module => cshader[],
@@ -85,6 +89,23 @@ vertexAttrib2 = WGPU.createEntry(
 	offset=16,
 	shaderLocation=1
 ).internal[]
+
+function test()
+	vertexAttrib1 = WGPU.createEntry(
+		WGPU.GPUVertexAttribute; 
+		format="Float32x4",
+		offset=0,
+		shaderLocation=0
+	).internal[]
+
+
+	vertexAttrib2 = WGPU.createEntry(
+		WGPU.GPUVertexAttribute; 
+		format="Float32x2",
+		offset=16,
+		shaderLocation=1
+	).internal[]
+end
 
 
 vertexState = WGPU.createEntry(

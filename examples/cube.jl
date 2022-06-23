@@ -133,7 +133,7 @@ uniformData = ones(Float32, (4, 4)) |> Diagonal |> Matrix
 	["Uniform", "CopyDst"]
 )
 
-renderTextureFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter[])
+renderTextureFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
 
 texture = WGPU.createTexture(
 	gpuDevice,
@@ -219,7 +219,7 @@ pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGrou
 
 presentContext = WGPU.getContext(canvas)
 
-WGPU.determineSize(presentContext)
+WGPU.determineSize(presentContext[])
 
 WGPU.config(presentContext, device=gpuDevice, format = renderTextureFormat)
 
@@ -299,7 +299,7 @@ try
 		(tmpBuffer, _) = WGPU.createBufferWithData(
 			gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc"
 		)
-		currentTextureView = WGPU.getCurrentTexture(presentContext) |> Ref;
+		currentTextureView = WGPU.getCurrentTexture(presentContext[]) |> Ref;
 		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "CMD ENCODER")
 		WGPU.copyBufferToBuffer(cmdEncoder, tmpBuffer, 0, uniformBuffer, 0, sizeof(uniformData))
 		
@@ -326,14 +326,14 @@ try
 		WGPU.drawIndexed(renderPass, Int32(indexBuffer.size/sizeof(UInt32)); instanceCount = 1, firstIndex=0, baseVertex= 0, firstInstance=0)
 		WGPU.endEncoder(renderPass)
 		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
-		WGPU.present(presentContext)
+		WGPU.present(presentContext[])
 		GLFW.PollEvents()
-		dataDown = reinterpret(Float32, WGPU.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
-		@info sum(dataDown .== vertexData |> flatten)
-		@info dataDown
-		println("FPS : $(1/(a2 - prevTime))")
-		WGPU.destroy(tmpBuffer)
-		WGPU.destroy(currentTextureView[])
+		# dataDown = reinterpret(Float32, WGPU.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
+		# @info sum(dataDown .== vertexData |> flatten)
+		# @info dataDown
+		# println("FPS : $(1/(a2 - prevTime))")
+		# WGPU.destroy(tmpBuffer)
+		# WGPU.destroy(currentTextureView[])
 		prevTime = a2
 	end
 finally

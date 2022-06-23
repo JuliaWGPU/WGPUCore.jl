@@ -54,10 +54,10 @@ else
 end
 
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter[])
+swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
 
 presentContext = WGPU.getContext(canvas)
-WGPU.determineSize(presentContext)
+WGPU.determineSize(presentContext[])
 
 WGPU.config(presentContext, device=gpuDevice, format = swapChainFormat)
 
@@ -117,7 +117,7 @@ WGPU.attachDrawFunction(canvas, drawFunction)
 
 try
 	while !GLFW.WindowShouldClose(canvas.windowRef[])
-		nextTexture = WGPU.getCurrentTexture(presentContext) |> Ref
+		nextTexture = WGPU.getCurrentTexture(presentContext[]) |> Ref
 		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
 		renderPassOptions = [
 			WGPU.GPUColorAttachments => [
@@ -137,7 +137,7 @@ try
 		WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex= 0, firstInstance=0)
 		WGPU.endEncoder(renderPass)
 		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
-		WGPU.present(presentContext)
+		WGPU.present(presentContext[])
 		GLFW.PollEvents()
 	end
 finally

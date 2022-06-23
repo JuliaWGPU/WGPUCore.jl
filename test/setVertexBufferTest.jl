@@ -1,4 +1,5 @@
 ## Load WGPU
+GC.gc()
 using WGPU
 using Test
 
@@ -61,3 +62,6 @@ dataDown2 = reshape(dataDown, (6, 24))
 
 Test.@test reshape(vertexData, (6, 24)) == dataDown2
 
+GC.gc()
+
+# gpuDevice = nothing
