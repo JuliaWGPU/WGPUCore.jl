@@ -1,16 +1,10 @@
 
 module WGPU
 
+
 using CEnum
 using GLFW
 ##
-
-DEBUG=false
-
-function setDebugMode(mode)
-	global DEBUG
-	DEBUG=mode
-end
 
 include("utils.jl")
 
@@ -834,7 +828,11 @@ function createEntry(::Type{GPUVertexAttribute}; args...)
 		offset = args[:offset],
 		shaderLocation = args[:shaderLocation]
 	)
-	return GPUVertexAttribute(aRef |> Ref, args)
+	return partialInit(
+		GPUVertexAttribute;
+		internal = aRef,
+		strongRefs = nothing
+	)
 end
 
 mutable struct GPUVertexBufferLayout 
@@ -850,20 +848,26 @@ function createEntry(::Type{GPUVertexBufferLayout}; args...)
 	for attribute in attributes
 		obj = createEntry(GPUVertexAttribute; attribute.second...)
 		push!(attrArrayObjs, obj)
-		push!(attrArray, obj.internal[])
+		push!(attrArray, obj.internal)
 	end
 	
 	attributesArrayPtr = pointer(map((x) -> x[], attrArray))
 	
-	aref = partialInit(
+	aref = GC.@preserve attributesArrayPtr partialInit(
 		WGPUVertexBufferLayout;
 		arrayStride = args[:arrayStride],
 		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]), # TODO default is "vertex"
 		attributes = attributesArrayPtr,
-		attributeCount = length(attrArray)
+		attributeCount = length(attrArray),
+		xref1 = attrArray,
+		xref2 = attrArrayObjs,
 	)
 	
-	return GPUVertexBufferLayout(aref |> Ref, (args , attributesArrayPtr, attrArrayObjs, attrArray) .|> Ref)
+	partialInit(
+		GPUVertexBufferLayout;
+		internal = aref,
+		strongRefs = nothing,
+	)
 end
 
 struct GPUVertexState
@@ -876,30 +880,39 @@ function createEntry(::Type{GPUVertexState}; args...)
 	buffersArrayObjs = GPUVertexBufferLayout[]
 	buffers = args[:buffers]
 	entryPointArg = args[:entryPoint]
-
+	
 	for buffer in buffers
 		obj = createEntry(buffer.first; buffer.second...)
 		push!(buffersArrayObjs, obj)
-		push!(bufferDescArray, obj.internal[])
+		push!(bufferDescArray, obj.internal)
 	end
-
+	
 	buffersArray = C_NULL
+	
 	if length(buffers) > 0
 		buffersArray = pointer(map((x) -> x[], bufferDescArray))
 	end
-
+	
 	entryPointPtr = pointer(entryPointArg)
 	shader = args[:_module] |> Ref
 	shaderInternal = shader[].internal
-	aRef = partialInit(
+	
+	aRef = GC.@preserve entryPointPtr buffersArray partialInit(
 		WGPUVertexState;
 		_module = shaderInternal[],
 		entryPoint = entryPointPtr,
 		buffers = buffersArray,
-		bufferCount = length(buffers)
+		bufferCount = length(buffers),
+		xref1 = bufferDescArray,
+		xref2 = buffersArrayObjs,
+		xref3 = shader
 	)
-		
-	return GPUVertexState(aRef[] |> Ref, (args, entryPointArg, shader, shaderInternal, buffers, buffersArray, buffersArrayObjs, bufferDescArray) .|> Ref)
+	
+	partialInit(
+		GPUVertexState;
+		internal = aRef,
+		strongRefs = nothing,
+	)
 end
 
 struct GPUPrimitiveState 
@@ -1078,15 +1091,15 @@ function createRenderPipeline(
 	multiSampleState = renderArgs[GPUMultiSampleState]
 	fragmentState = renderArgs[GPUFragmentState]
 	pipelineDesc = partialInit(
-			WGPURenderPipelineDescriptor;
-			label = pointer(label),
-			layout = pipelinelayout.internal[],
-			vertex = vertexState[],
-			primitive = primitiveState[],
-			depthStencil = depthStencilState[],
-			multisample = multiSampleState[],
-			fragment = fragmentState[]
-		)
+		WGPURenderPipelineDescriptor;
+		label = pointer(label),
+		layout = pipelinelayout.internal[],
+		vertex = vertexState[],
+		primitive = primitiveState[],
+		depthStencil = depthStencilState[],
+		multisample = multiSampleState[],
+		fragment = fragmentState[]
+	)
 	renderpipeline =  wgpuDeviceCreateRenderPipeline(
 		gpuDevice.internal[],
 		pipelineDesc |> pointer_from_objref
@@ -1299,14 +1312,12 @@ function createRenderPassEncoder()
 
 end
 
-
 function setPipeline(computePass::GPUComputePassEncoder, pipeline)
 	wgpuComputePassEncoderSetPipeline(
 		computePass.internal[], 
 		pipeline.internal[]
 	)
 end
-
 
 function setBindGroup(computePass::GPUComputePassEncoder, 
 						index::Int, 
@@ -1324,7 +1335,6 @@ function setBindGroup(computePass::GPUComputePassEncoder,
 	)
 	return nothing
 end
-
 
 function setBindGroup(renderPass::GPURenderPassEncoder, 
 						index::Int, 
@@ -1344,7 +1354,6 @@ function setBindGroup(renderPass::GPURenderPassEncoder,
 	return nothing
 end
 
-
 function dispatchWorkGroups(computePass::GPUComputePassEncoder, countX, countY=1, countZ=1)
 	wgpuComputePassEncoderDispatch(
 		computePass.internal[],
@@ -1353,7 +1362,6 @@ function dispatchWorkGroups(computePass::GPUComputePassEncoder, countX, countY=1
 		countZ
 	)
 end
-
 
 function dispatchWorkGroupsIndirect()
 
@@ -1378,7 +1386,6 @@ function setViewport(renderPass::GPURenderPassEncoder,
 		float(maxDepth)
 	)					
 end
-
 
 function setScissorRect(
 	renderPass::GPURenderPassEncoder,
@@ -1420,7 +1427,6 @@ function setIndexBuffer(
 	)
 end
 
-
 function setVertexBuffer(
 	rpe::GPURenderPassEncoder,
 	slot,
@@ -1440,8 +1446,6 @@ function setVertexBuffer(
 	)
 end
 
-
-
 function draw(
 	renderPassEncoder::GPURenderPassEncoder,
 	vertexCount;
@@ -1457,7 +1461,6 @@ function draw(
 		firstInstance
 	)
 end
-
 
 function drawIndexed(
 	renderPassEncoder::GPURenderPassEncoder,
@@ -1485,7 +1488,6 @@ function endEncoder(
 	)
 end
 
-
 function submit(queue::GPUQueue, commandBuffers)
 	commandBufferListPtr = map((cmdbuf)-> cmdbuf.internal[], commandBuffers)
 	GC.@preserve commandBufferListPtr wgpuQueueSubmit(queue.internal[], length(commandBuffers), commandBufferListPtr)
@@ -1493,7 +1495,6 @@ function submit(queue::GPUQueue, commandBuffers)
 		cmdbuf.internal[] = C_NULL
 	end
 end
-
 
 function writeTexture(queue::GPUQueue; args...)
 	args = Dict(args)
@@ -1545,7 +1546,6 @@ function readTexture()
 
 end
 
-
 function readBuffer(gpuDevice, buffer, bufferOffset, size)
 	# TODO more implementation is required
 	# Took shortcut
@@ -1566,7 +1566,6 @@ end
 function writeBuffer(queue::GPUQueue, buffer, bufferOffset, data, dataOffset, size)
 	
 end
-
 
 abstract type CanvasInterface end
 
@@ -1589,7 +1588,6 @@ mutable struct GLFWX11Canvas <: GLFWCanvas
 	context
 	drawFunc
 end
-
 
 function attachDrawFunction(canvas::GLFWCanvas, f)
 	if canvas.drawFunc == nothing
@@ -1664,7 +1662,6 @@ function defaultInit(::Type{GLFWX11Canvas})
 	return canvas
 end
 
-
 function setJoystickCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
 		callback = (joystick, event) -> println("$joystick $event")
@@ -1673,7 +1670,6 @@ function setJoystickCallback(canvas::GLFWCanvas, f=nothing)
 	end
 	GLFW.SetJoystickCallback(callback)	
 end
-
 
 function setMonitorCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
@@ -1754,7 +1750,6 @@ function setKeyCallback(canvas::GLFWCanvas, f=nothing)
 	GLFW.SetKeyCallback(canvas.windowRef[], callback)	
 end
 
-
 function setCharModsCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
 		callback = (_, c, mods) -> println("char: $c, mods : $mods")
@@ -1791,7 +1786,6 @@ function setScrollCallback(canvas::GLFWCanvas, f=nothing)
 	GLFW.SetScrollCallback(canvas.windowRef[], callback)	
 end
 
-
 function setDropCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
 		callback = (_, paths) -> println("path $paths")
@@ -1800,8 +1794,6 @@ function setDropCallback(canvas::GLFWCanvas, f=nothing)
 	end
 	GLFW.SetDropCallback(canvas.windowRef[], callback)	
 end
-
-
 
 mutable struct GPUCanvasContext
 	canvasRef::Ref{GLFWX11Canvas}
@@ -1820,7 +1812,6 @@ mutable struct GPUCanvasContext
 	logicalSize
 end
 
-
 function getContext(gpuCanvas::GLFWX11Canvas)
 	if gpuCanvas.context == nothing
 		return partialInit(
@@ -1837,7 +1828,6 @@ function getContext(gpuCanvas::GLFWX11Canvas)
 	end
 end
 
-
 function config(a::T; args...) where T
 	fields = fieldnames(typeof(a[]))
 	for pair in args
@@ -1849,13 +1839,11 @@ function config(a::T; args...) where T
 	end
 end
 
-
 function unconfig(a::T) where T
 	for field in fieldnames(T)
 		setproperty!(a, field, defaultInit(fieldtype(T, field)))
 	end
 end
-
 
 function configure(
 	canvasContext::GPUCanvasContext;
@@ -1893,7 +1881,6 @@ function determineSize(cntxt::GPUCanvasContext)
 	cntxt.logicalSize = (psize.width, psize.height)./pixelRatio
 	# TODO skipping event handlers for now
 end
-
 
 function getPreferredFormat(canvasContext::GPUCanvasContext)
 	# TODO return srgb
@@ -1970,7 +1957,6 @@ function Base.setproperty!(texview::GPUTextureView, s::Symbol, value)
 	end
 end
 
-
 function destroy(tex::GPUTexture)
 	if tex.internal[] != C_NULL
 		tmpTex = tex.internal[]
@@ -1986,7 +1972,6 @@ function Base.setproperty!(tex::GPUTexture, s::Symbol, value)
 		end
 	end
 end
-
 
 function destroy(sampler::GPUSampler)
 	if sampler.internal[] != C_NULL
@@ -2004,7 +1989,6 @@ function Base.setproperty!(sampler::GPUSampler, s::Symbol, value)
 	end
 end
 
-
 function destroy(layout::GPUBindGroupLayout)
 	if layout.internal[] != C_NULL
 		tmpLayout = layout.internal[]
@@ -2020,7 +2004,6 @@ function Base.setproperty!(layout::GPUBindGroupLayout, s::Symbol, value)
 		end
 	end
 end
-
 
 function destroy(bindGroup::GPUBindGroup)
 	if bindGroup.internal[] != C_NULL
@@ -2038,7 +2021,6 @@ function Base.setproperty!(bindGroup::GPUBindGroup, s::Symbol, value)
 	end
 end
 
-
 function destroy(layout::GPUPipelineLayout)
 	if layout.internal[] != C_NULL
 		tmpLayout = layout.internal[]
@@ -2054,7 +2036,6 @@ function Base.setproperty!(pipeline::GPUPipelineLayout, s::Symbol, value)
 		end
 	end
 end
-
 
 function destroy(shader::GPUShaderModule)
 	if shader.internal[] != C_NULL
@@ -2072,7 +2053,6 @@ function Base.setproperty!(shader::GPUShaderModule, s::Symbol, value)
 	end
 end
 
-
 function destroy(pipeline::GPUComputePipeline)
 	if pipeline.internal[] != C_NULL
 		tmpPipeline = pipeline.internal[]
@@ -2089,8 +2069,6 @@ function Base.setproperty!(pipeline::GPUComputePipeline, s::Symbol, value)
 	end
 end
 
-
-
 function destroy(pipeline::GPURenderPipeline)
 	if pipeline.internal[] != C_NULL
 		tmpPipeline = pipeline.internal[]
@@ -2106,7 +2084,6 @@ function Base.setproperty!(pipeline::GPURenderPipeline, s::Symbol, value)
 		end
 	end
 end
-
 
 function destroy(gpuBuffer::GPUBuffer)
 	if gpuBuffer.internal[] != C_NULL
@@ -2139,7 +2116,6 @@ function Base.setproperty!(buf::GPUCommandBuffer, s::Symbol, value)
 		end
 	end
 end
-
 
 function destroy(cmdEncoder::GPUCommandEncoder)
 	if cmdEncoder.internal[] != C_NULL
@@ -2195,6 +2171,11 @@ function Base.setproperty!(device::GPUDevice, s::Symbol, value)
 			destroy(device)
 		end
 	end
+end
+
+# TODO 
+function isdestroyable() 
+
 end
 
 end

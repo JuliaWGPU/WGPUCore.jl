@@ -1,10 +1,17 @@
-
 ## Load WGPU
 using WGPU_jll
 using CEnum
 using CEnum:Cenum
 ## default inits for non primitive types
-weakRefs = WeakKeyDict() |> lock
+weakRefs = WeakKeyDict() # |> lock
+
+DEBUG=false
+
+function setDebugMode(mode)
+	global DEBUG
+	DEBUG=mode
+end
+
 ## Set Log callbacks
 function getEnum(::Type{T}, query::String) where T <: Cenum
 	pairs = CEnum.name_value_pairs(T)
@@ -78,7 +85,6 @@ defaultInit(::Type{T}) where T = begin
 	end
 end
 
-
 defaultInit(::Type{WGPUNativeFeature}) = WGPUNativeFeature(0x10000000)
 
 defaultInit(::Type{WGPUSType}) = WGPUSType(6)
@@ -98,6 +104,7 @@ defaultInit(::Type{Tuple{T}}) where T = Tuple{T}(zeros(T))
 defaultInit(::Type{Ref{T}}) where T = Ref{T}()
 
 weakRefs = WeakKeyDict()
+lock(weakRefs)
 
 mutable struct WGPURef{T}
 	inner::Union{T, Nothing}
@@ -126,6 +133,7 @@ end
 
 function partialInit(target::Type{T}; fields...) where T
 	ins = []
+	others = []
 	inPairs = pairs(fields)
 	for field in fieldnames(T)
        	if field in keys(inPairs)
@@ -134,19 +142,34 @@ function partialInit(target::Type{T}; fields...) where T
 	        push!(ins, defaultInit(fieldtype(T, field)))
 		end
 	end
-	t = WGPURef{T}(T(ins...))
+	for field in keys(inPairs)
+		if startswith(string(field), "xref")
+			push!(others, inPairs[field])
+		end
+	end
+	torigin = T(ins...)
+	t = WGPURef{T}(torigin)
 	f(x) = begin
 		@warn "Finalizing WGPURef $x"
-		x.inner = nothing
 		x = nothing
 	end
-	if islocked(weakRefs)
-		unlock(weakRefs)
-		weakRefs[t] = ins
-		lock(weakRefs)
-	end
+	# if islocked(weakRefs)
+		# unlock(weakRefs)
+		weakRefs[t] = [torigin, ins..., others...]
+		# lock(weakRefs)
+	# end
 	finalizer(f, t)
 	return t
+end
+
+function addToRefs(a::T, args...) where T
+	@assert islocked(weakRefs) == true "WeakRefs is supposed to be locked"
+	if islocked(weakRefs)
+		unlock(weakRefs)
+		weakRefs[a] = args
+		lock(weakRefs)
+	end
+	return a
 end
 
 ## few more helper functions 
@@ -154,13 +177,11 @@ function unsafe_charArray(w::String)
     return pointer(Vector{UInt8}(w))
 end
 
-
 function pointerRef(::Type{T}; kwargs...) where T
     pointer_from_objref(Ref(partialInit(
         T;
         kwargs...)))
 end
-
 
 function pointerRef(a::Ref{T}) where T<:Any
 	return pointer_from_objref(a)
@@ -176,4 +197,3 @@ function listPartials(::Type{T}) where T <: Cenum
 	pairs = CEnum.name_value_pairs(T)
 	map((x) -> split(string(x[1]), "_")[end], pairs)
 end
-
