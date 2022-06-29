@@ -11,7 +11,6 @@ function setDebugMode(mode)
 	global DEBUG
 	DEBUG=mode
 end
-
 ## Set Log callbacks
 function getEnum(::Type{T}, query::String) where T <: Cenum
 	pairs = CEnum.name_value_pairs(T)
@@ -103,9 +102,6 @@ defaultInit(::Type{Tuple{T}}) where T = Tuple{T}(zeros(T))
 
 defaultInit(::Type{Ref{T}}) where T = Ref{T}()
 
-weakRefs = WeakKeyDict()
-lock(weakRefs)
-
 mutable struct WGPURef{T}
 	inner::Union{T, Nothing}
 end
@@ -153,11 +149,7 @@ function partialInit(target::Type{T}; fields...) where T
 		@warn "Finalizing WGPURef $x"
 		x = nothing
 	end
-	# if islocked(weakRefs)
-		# unlock(weakRefs)
-		weakRefs[t] = [torigin, ins..., others...]
-		# lock(weakRefs)
-	# end
+	weakRefs[t] = [torigin, ins..., others...]
 	finalizer(f, t)
 	return t
 end
@@ -186,7 +178,7 @@ end
 function pointerRef(a::Ref{T}) where T<:Any
 	return pointer_from_objref(a)
 end
-		
+
 getBufferUsage(partials) = getEnum(WGPUBufferUsage, partials)
 
 getBufferBindingType(partials) = getEnum(WGPUBufferBindingType, partials)
