@@ -251,13 +251,11 @@ function requestDevice(gpuAdapter::GPUAdapter;
     	sType = WGPUSType(Int32(WGPUSType_DeviceExtras))
    	)
    	
-    deviceName = pointer("Device") |> WGPURef
-    
     deviceExtras = partialInit(
     	WGPUDeviceExtras;
     	chain = chain[], 
     	nativeFeatures = defaultInit(WGPUNativeFeature), 
-    	label = deviceName[], 
+    	label = pointer("Device"), 
     	tracePath = pointer(tracepath)
    	)
    	
@@ -822,16 +820,11 @@ mutable struct GPUVertexAttribute
 end
 
 function createEntry(::Type{GPUVertexAttribute}; args...)
-	aRef =	partialInit(
+	partialInit(
 		WGPUVertexAttribute;
 		format = getEnum(WGPUVertexFormat, args[:format]),
 		offset = args[:offset],
 		shaderLocation = args[:shaderLocation]
-	)
-	return partialInit(
-		GPUVertexAttribute;
-		internal = aRef,
-		strongRefs = nothing
 	)
 end
 
@@ -841,33 +834,23 @@ mutable struct GPUVertexBufferLayout
 end
 
 function createEntry(::Type{GPUVertexBufferLayout}; args...)
-	attrArray = WGPURef{WGPUVertexAttribute}[]
-	attrArrayObjs = GPUVertexAttribute[]
-	attributes = args[:attributes]
+	attributes = WGPUVertexAttribute[]
+	attributeArgs = args[:attributes]
 	
-	for attribute in attributes
+	for attribute in attributeArgs
 		obj = createEntry(GPUVertexAttribute; attribute.second...)
-		push!(attrArrayObjs, obj)
-		push!(attrArray, obj.internal)
+		push!(attributes, obj[])
 	end
 	
-	attributesArrayPtr = pointer(map((x) -> x[], attrArray))
-	
-	aref = GC.@preserve attributesArrayPtr partialInit(
+	aref = partialInit(
 		WGPUVertexBufferLayout;
 		arrayStride = args[:arrayStride],
-		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]), # TODO default is "vertex"
-		attributes = attributesArrayPtr,
-		attributeCount = length(attrArray),
-		xref1 = attrArray,
-		xref2 = attrArrayObjs,
+		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]),
+		attributes = pointer(attributes),
+		attributeCount = length(attributes),
+		xref1 = attributes,
 	)
-	
-	partialInit(
-		GPUVertexBufferLayout;
-		internal = aref,
-		strongRefs = nothing,
-	)
+	return GPUVertexBufferLayout(aref, nothing)
 end
 
 struct GPUVertexState
@@ -887,32 +870,33 @@ function createEntry(::Type{GPUVertexState}; args...)
 		push!(bufferDescArray, obj.internal)
 	end
 	
-	buffersArray = C_NULL
+	buffersArray = C_NULL |> Ref
 	
 	if length(buffers) > 0
-		buffersArray = pointer(map((x) -> x[], bufferDescArray))
+		buffersArray = pointer(map((x) -> x[], bufferDescArray)) |> Ref
 	end
 	
 	entryPointPtr = pointer(entryPointArg)
-	shader = args[:_module] |> Ref
-	shaderInternal = shader[].internal
+
+	shader = args[:_module]
+	if shader != C_NULL
+		shaderInternal = shader.internal
+	else
+		shaderInternal = C_NULL |> Ref
+	end
 	
 	aRef = GC.@preserve entryPointPtr buffersArray partialInit(
 		WGPUVertexState;
 		_module = shaderInternal[],
 		entryPoint = entryPointPtr,
-		buffers = buffersArray,
+		buffers = buffersArray[],
 		bufferCount = length(buffers),
 		xref1 = bufferDescArray,
 		xref2 = buffersArrayObjs,
-		xref3 = shader
+		xref3 = shader,
+		xref4 = buffersArray
 	)
-	
-	partialInit(
-		GPUVertexState;
-		internal = aRef,
-		strongRefs = nothing,
-	)
+	GPUVertexState(aRef, nothing)
 end
 
 struct GPUPrimitiveState 
@@ -947,7 +931,7 @@ function createEntry(::Type{GPUStencilFaceState}; args...)
 	return GPUStencilFaceState(a, args)
 end
 
-struct GPUDepthStencilState 
+struct GPUDepthStencilState
 	internal
 	strongRefs
 end
