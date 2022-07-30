@@ -205,16 +205,18 @@ bindings = [
 	]
 ]
 
-cBindingLayoutsList = WGPU.makeEntryList(bindingLayouts) |> Ref
-cBindingsList = WGPU.makeBindGroupEntryList(bindings) |> Ref
-bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
-
-if bindGroupLayout.internal[] == C_NULL
-	bindGroupLayouts = []
-else
-	bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
-end
+(bindGroupLayouts, bindGroup) = WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+# 
+# cBindingLayoutsList = WGPU.makeEntryList(bindingLayouts) |> Ref
+# cBindingsList = WGPU.makeBindGroupEntryList(bindings) |> Ref
+# bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
+# bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
+# 
+# if bindGroupLayout.internal[] == C_NULL
+	# bindGroupLayouts = []
+# else
+	# bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
+# end
 
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 

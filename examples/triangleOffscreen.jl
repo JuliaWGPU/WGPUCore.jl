@@ -43,16 +43,8 @@ cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothi
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPU.makeEntryList(bindingLayouts))
-cBindingsList = Ref(WGPU.makeBindGroupEntryList(bindings))
-bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
-if bindGroupLayout.internal[] == C_NULL
-	bindGroupLayouts = C_NULL
-else
-	bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
-end
+(bindGroupLayouts, bindGroup) = WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 # swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])

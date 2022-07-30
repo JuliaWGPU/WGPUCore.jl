@@ -86,14 +86,10 @@ bindings = [
 	]
 ]
 
-cBindingLayoutsList = Ref(WGPU.makeEntryList(bindingLayouts))
-cBindingsList = Ref(WGPU.makeBindGroupEntryList(bindings))
 
-bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
-bindGroupLayouts = Ref(map((x)->x.internal[], [bindGroupLayout,]))
+(bindGroupLayouts, bindGroup) = WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 
-pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts[])
+pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 computeStage = WGPU.createComputeStage(cshader[], "main")
 computePipeline = WGPU.createComputePipeline(gpuDevice, "computePipeline", pipelineLayout, computeStage)
 

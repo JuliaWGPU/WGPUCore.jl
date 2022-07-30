@@ -686,6 +686,19 @@ function createBindGroup(label, gpuDevice, bindingLayout, entries)
 	GPUBindGroup(label, Ref(bindGroup), bindingLayout, gpuDevice, entries)
 end
 
+function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+	cBindingLayoutsList = Ref(makeEntryList(bindingLayouts))
+	cBindingsList = Ref(makeBindGroupEntryList(bindings))
+	bindGroupLayout = createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
+	bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
+	if bindGroupLayout.internal[] == C_NULL
+		bindGroupLayouts = []
+	else
+		bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
+	end
+	return (bindGroupLayouts, bindGroup)
+end
+
 mutable struct GPUPipelineLayout
 	label
 	internal
