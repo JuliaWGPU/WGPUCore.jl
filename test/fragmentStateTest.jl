@@ -35,7 +35,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPU.defaultInit(WGPU.GLFWX11Canvas);
+canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
@@ -54,7 +54,7 @@ else
 end
 
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter[])
+swapChainFormat = WGPU.getPreferredFormat(canvas)
 
 fStateOptions = WGPU.GPUFragmentState => [
 	:_module => cshader[],
@@ -78,7 +78,7 @@ fStateOptions = WGPU.GPUFragmentState => [
 
 fstate = WGPU.createEntry(fStateOptions.first; fStateOptions.second...)
 
-fs = unsafe_load(fstate.internal[])
+fs = unsafe_load(convert(Ptr{WGPU.WGPUFragmentState}, fstate.internal[]))
 
 Test.@testset "FragmentState" begin
 	Test.@test unsafe_string(fs.entryPoint) == "fs_main"

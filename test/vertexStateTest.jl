@@ -59,8 +59,8 @@ attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
 
 Test.@testset "VertexAttribute" begin
-	Test.@test attr1 == vertexAttrib1[]
+	Test.@test attr1 == vertexAttrib1.internal[]
 	Test.@test attrs == [attr1, attr2]
-	Test.@test attr2 == vertexAttrib2[]
+	Test.@test attr2 == vertexAttrib2.internal[]
 end
 

@@ -205,22 +205,22 @@ function requestAdapter(; canvas=nothing, powerPreference = defaultInit(WGPUPowe
         adapter[]
     )
 
-    c_properties = partialInit(
+    c_propertiesRef = partialInit(
     	WGPUAdapterProperties
-   	) 
+   	) |> Ref
    	
-   	c_propertiesPtr = c_properties |> pointer_from_objref
+   	c_propertiesPtr = c_propertiesRef |> pointer_from_objref
 
     wgpuAdapterGetProperties(adapter[], c_propertiesPtr)
     g = convert(Ptr{WGPUAdapterProperties}, c_propertiesPtr)
     h = GC.@preserve c_propertiesPtr unsafe_load(g)
-    supportedLimits = partialInit(
+    supportedLimitsRef = partialInit(
     	WGPUSupportedLimits;
-   	) 
-    supportedLimitsPtr = supportedLimits |> pointer_from_objref
+   	) |> Ref
+    supportedLimitsPtr = supportedLimitsRef |> pointer_from_objref
     GC.@preserve supportedLimitsPtr wgpuAdapterGetLimits(adapter[], supportedLimitsPtr)
     g = convert(Ptr{WGPUSupportedLimits}, supportedLimitsPtr)
-    h = GC.@preserve supportedLimits unsafe_load(g)
+    h = GC.@preserve supportedLimitsPtr unsafe_load(g)
     features = []
     partialInit(
 		GPUAdapter;
@@ -228,9 +228,9 @@ function requestAdapter(; canvas=nothing, powerPreference = defaultInit(WGPUPowe
    	    features = features,
    	    internal = adapter,
    	    limits = h.limits,
-   	    properties = c_properties,
+   	    properties = c_propertiesRef,
    	    options = adapterOptions,
-   	    supportedLimits = supportedLimits,
+   	    supportedLimits = supportedLimitsRef,
    	    extras = adapterExtras
     )
 end
@@ -259,7 +259,7 @@ function requestDevice(gpuAdapter::GPUAdapter;
     	tracePath = pointer(tracepath)
    	)
    	
-    wgpuLimits = partialInit(WGPULimits; maxBindGroups = 2) # TODO set limits
+    wgpuLimits = partialInit(WGPULimits; maxBindGroups = 4) # TODO set limits
     wgpuRequiredLimits = partialInit(
    		WGPURequiredLimits; 
 		nextInChain = C_NULL,
@@ -373,7 +373,7 @@ mutable struct GPUTexture
 end
 
 ## BufferDimension
-struct BufferDimensions
+mutable struct BufferDimensions
 	height::UInt32
 	width::UInt32
 	padded_bytes_per_row::UInt32
@@ -402,12 +402,11 @@ function createTexture(gpuDevice,
 		height = size[2],
 		depthOrArrayLayers = size[3]
 	) |> Ref
-	labelPtr = pointer(label)
-	texture = GC.@preserve labelPtr wgpuDeviceCreateTexture(
+	texture = GC.@preserve label wgpuDeviceCreateTexture(
 		gpuDevice.internal[],
 		partialInit(
 			WGPUTextureDescriptor;
-			label = labelPtr,
+			label = pointer(label),
 			size = textureExtent[],
 			mipLevelCount = mipLevelCount,
 			sampleCount = sampleCount,
@@ -635,7 +634,7 @@ end
 function createBindGroupLayout(gpuDevice, label, entries)
 	bindGroupLayout = C_NULL
 	if entries != C_NULL && length(entries) > 0
-		bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
+		bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
 			gpuDevice.internal[],
 			Ref(partialInit(
 				WGPUBindGroupLayoutDescriptor;
@@ -671,14 +670,13 @@ function makeBindGroupEntryList(entries)
 end
 
 function createBindGroup(label, gpuDevice, bindingLayout, entries)
-	labelPtr = pointer(label)
 	bindGroup = C_NULL
 	if entries != C_NULL && length(entries) > 0
-		bindGroup = GC.@preserve labelPtr wgpuDeviceCreateBindGroup(
+		bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
 			gpuDevice.internal[],
 			Ref(partialInit(
 				WGPUBindGroupDescriptor;
-				label = labelPtr,
+				label = pointer(label),
 				layout = bindingLayout.internal[],
 				entries = entries == C_NULL ? C_NULL : pointer(entries),
 				entryCount = entries == C_NULL ? 0 : length(entries)
@@ -693,28 +691,23 @@ mutable struct GPUPipelineLayout
 	internal
 	device
 	layouts
+	descriptor
 end
 
 function createPipelineLayout(gpuDevice, label, bindGroupLayouts)
-	labelPtr = pointer(label)
-	if bindGroupLayouts == C_NULL
-		bindGroupLayoutsPtr = C_NULL
-		bindGroupLayoutCount = 0
-	else
-		bindGroupLayoutsPtr = pointer(bindGroupLayouts)
-		bindGroupLayoutCount = length(bindGroupLayouts)
-	end
-	pipelineDescriptor = GC.@preserve bindGroupLayoutsPtr labelPtr partialInit(
+	@assert typeof(bindGroupLayouts) <: Array "bindGroupLayouts should be an array"
+	layoutCount = length(bindGroupLayouts)
+	pipelineDescriptor = GC.@preserve bindGroupLayouts label partialInit(
 				WGPUPipelineLayoutDescriptor;
-				label = labelPtr,
-				bindGroupLayouts = bindGroupLayoutsPtr,
-				bindGroupLayoutCount = bindGroupLayoutCount
+				label = pointer(label),
+				bindGroupLayouts = (layoutCount == 0) ? C_NULL : pointer(bindGroupLayouts),
+				bindGroupLayoutCount = layoutCount
 			) |> Ref
 	pipelineLayout = wgpuDeviceCreatePipelineLayout(
 		gpuDevice.internal[],
-		pipelineDescriptor |> pointer_from_objref
+		pipelineDescriptor
 	) |> Ref
-	GPUPipelineLayout(label, pipelineLayout, gpuDevice, bindGroupLayouts)
+	GPUPipelineLayout(label, pipelineLayout, gpuDevice, bindGroupLayouts, pipelineDescriptor)
 end	
 
 mutable struct GPUShaderModule
@@ -723,7 +716,7 @@ mutable struct GPUShaderModule
 	device
 end
 
-function loadWGSL(buffer::Vector{UInt8}; name="UnnamedShader")
+function loadWGSL(buffer::Vector{UInt8}; name=" UnnamedShader ")
 	b = buffer
 	bufPointer = pointer(b)
 	wgslDescriptor = GC.@preserve bufPointer Ref(WGPUShaderModuleWGSLDescriptor(
@@ -734,7 +727,7 @@ function loadWGSL(buffer::Vector{UInt8}; name="UnnamedShader")
 		WGPUShaderModuleDescriptor;
 		nextInChain = pointer_from_objref(wgslDescriptor),
 		label = pointer(name)
-	) |> WGPURef
+	)
 	return (a, wgslDescriptor, names)
 end
 
@@ -748,7 +741,7 @@ function loadWGSL(buffer::IOBuffer; name= " UnknownShader ")
 		WGPUShaderModuleDescriptor;
 		nextInChain = pointer_from_objref(wgslDescriptor),
 		label = pointer(name)
-	) |> WGPURef
+	)
 	return (a, wgslDescriptor, names)
 end
 
@@ -776,9 +769,9 @@ function createShaderModule(
     shader = GC.@preserve shadercode wgpuDeviceCreateShaderModule(
     	gpuDevice.internal[],
     	pointer_from_objref(shadercode)
-    )
+    ) |> Ref
 
-	GPUShaderModule(label, Ref(shader), gpuDevice)
+	GPUShaderModule(label, shader, gpuDevice)
 end
 
 mutable struct GPUComputePipeline
@@ -790,26 +783,27 @@ end
 
 mutable struct ComputeStage
 	internal
+	entryPoint
 end
 
 function createComputeStage(shaderModule, entryPoint::String)
-	computeStage = partialInit(
+	computeStage = GC.@preserve entryPoint partialInit(
 		WGPUProgrammableStageDescriptor;
 		_module = shaderModule.internal[],
 		entryPoint = pointer(entryPoint)
 	)
-	return ComputeStage(Ref(computeStage))
+	return ComputeStage(computeStage, entryPoint)
 end
 
 function createComputePipeline(gpuDevice, label, pipelinelayout, computeStage)
-	computepipeline = wgpuDeviceCreateComputePipeline(
+	computepipeline = GC.@preserve label wgpuDeviceCreateComputePipeline(
 		gpuDevice.internal[],
-		Ref(partialInit(
+		partialInit(
 			WGPUComputePipelineDescriptor;
 			label = pointer(label),
 			layout = pipelinelayout.internal[],
 			compute = computeStage.internal[]
-		))
+		) |> Ref
 	)
 	GPUComputePipeline(label, Ref(computepipeline), gpuDevice, pipelinelayout)
 end
@@ -820,11 +814,14 @@ mutable struct GPUVertexAttribute
 end
 
 function createEntry(::Type{GPUVertexAttribute}; args...)
-	partialInit(
-		WGPUVertexAttribute;
-		format = getEnum(WGPUVertexFormat, args[:format]),
-		offset = args[:offset],
-		shaderLocation = args[:shaderLocation]
+	GPUVertexAttribute(
+		partialInit(
+			WGPUVertexAttribute;
+			format = getEnum(WGPUVertexFormat, args[:format]),
+			offset = args[:offset],
+			shaderLocation = args[:shaderLocation]
+		),
+		nothing
 	)
 end
 
@@ -834,46 +831,42 @@ mutable struct GPUVertexBufferLayout
 end
 
 function createEntry(::Type{GPUVertexBufferLayout}; args...)
-	attributes = WGPUVertexAttribute[]
+	attributeArray = WGPUVertexAttribute[]
 	attributeArgs = args[:attributes]
+	attributeObjs = GPUVertexAttribute[]
 	
 	for attribute in attributeArgs
 		obj = createEntry(GPUVertexAttribute; attribute.second...)
-		push!(attributes, obj[])
+		push!(attributeArray, obj.internal[])
+		push!(attributeObjs, obj)
 	end
 	
-	aref = partialInit(
+	aref = GC.@preserve attributeArray partialInit(
 		WGPUVertexBufferLayout;
 		arrayStride = args[:arrayStride],
 		stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]),
-		attributes = pointer(attributes),
-		attributeCount = length(attributes),
-		xref1 = attributes,
+		attributes = pointer(attributeArray),
+		attributeCount = length(attributeArray),
+		xref1 = attributeArray |> Ref,
 	)
-	return GPUVertexBufferLayout(aref, nothing)
+	return GPUVertexBufferLayout(aref, (attributeArray |> Ref, attributeObjs .|> Ref))
 end
 
-struct GPUVertexState
+mutable struct GPUVertexState
 	internal
 	strongRefs
 end
 
 function createEntry(::Type{GPUVertexState}; args...)
-	bufferDescArray = WGPURef{WGPUVertexBufferLayout}[]
+	bufferDescArray = WGPUVertexBufferLayout[]
 	buffersArrayObjs = GPUVertexBufferLayout[]
 	buffers = args[:buffers]
 	entryPointArg = args[:entryPoint]
-	
+
 	for buffer in buffers
 		obj = createEntry(buffer.first; buffer.second...)
 		push!(buffersArrayObjs, obj)
-		push!(bufferDescArray, obj.internal)
-	end
-	
-	buffersArray = C_NULL |> Ref
-	
-	if length(buffers) > 0
-		buffersArray = pointer(map((x) -> x[], bufferDescArray)) |> Ref
+		push!(bufferDescArray, obj.internal[])
 	end
 	
 	entryPointPtr = pointer(entryPointArg)
@@ -885,21 +878,19 @@ function createEntry(::Type{GPUVertexState}; args...)
 		shaderInternal = C_NULL |> Ref
 	end
 	
-	aRef = GC.@preserve entryPointPtr buffersArray partialInit(
+	aRef = GC.@preserve entryPointPtr bufferDescArray partialInit(
 		WGPUVertexState;
 		_module = shaderInternal[],
 		entryPoint = entryPointPtr,
-		buffers = buffersArray[],
+		buffers = length(buffers) == 0 ? C_NULL : pointer(bufferDescArray),
 		bufferCount = length(buffers),
 		xref1 = bufferDescArray,
-		xref2 = buffersArrayObjs,
-		xref3 = shader,
-		xref4 = buffersArray
+		xref2 = shader,
 	)
-	GPUVertexState(aRef, nothing)
+	GPUVertexState(aRef, (bufferDescArray, buffersArrayObjs .|> Ref, entryPointArg, args))
 end
 
-struct GPUPrimitiveState 
+mutable struct GPUPrimitiveState 
 	internal
 	strongRefs
 end
@@ -915,7 +906,7 @@ function createEntry(::Type{GPUPrimitiveState}; args...)
 	return GPUPrimitiveState(a, args)
 end
 
-struct GPUStencilFaceState 
+mutable struct GPUStencilFaceState 
 	internal
 	strongRefs
 end
@@ -931,7 +922,7 @@ function createEntry(::Type{GPUStencilFaceState}; args...)
 	return GPUStencilFaceState(a, args)
 end
 
-struct GPUDepthStencilState
+mutable struct GPUDepthStencilState
 	internal
 	strongRefs
 end
@@ -1011,7 +1002,10 @@ function createEntry(::Type{GPUColorTargetState}; args...)
 		WGPUColorTargetState;
 		format = args[:format],
 		blend = blend.internal |> pointer_from_objref,
-		writeMask = kargs[:writeMask]
+		writeMask = kargs[:writeMask],
+		xref1 = colorEntry,
+		xref2 = alphaEntry,
+		xref3 = blend
 	)
 	return GPUColorTargetState(aref[] |> Ref, (blend, blend.internal, colorEntry, alphaEntry, args) .|> Ref)
 end
@@ -1022,27 +1016,27 @@ mutable struct GPUFragmentState
 end
 
 function createEntry(::Type{GPUFragmentState}; args...)
-	targets = args[:targets]
+	targetsArg = args[:targets]
 	ctargets = WGPUColorTargetState[] 
 	targetObjs = GPUColorTargetState[]
-	for target in targets
+	
+	for target in targetsArg
 		obj = createEntry(target.first; target.second...)
 		push!(targetObjs, obj)
 		push!(ctargets, obj.internal[])
 	end
 	entryPointArg = args[:entryPoint]
-	entryPointPtr = pointer(entryPointArg)
 	shader = args[:_module] |> WGPURef
 	shaderInternal = shader[].internal
-	aref = GC.@preserve entryPointPtr shaderInternal partialInit(
+	aref = GC.@preserve entryPointArg ctargets shaderInternal partialInit(
 		WGPUFragmentState;
 		_module = shaderInternal[],
-		entryPoint = entryPointPtr,
+		entryPoint = pointer(entryPointArg),
 		targets = pointer(ctargets),
-		targetCount = length(targets)
+		targetCount = length(targetsArg)
 	)
-	aptrRef = aref |> pointer_from_objref |> (x) -> convert(Ptr{WGPUFragmentState}, x) |> Ref
-	return GPUFragmentState(aptrRef, (aref, args, shader, ctargets, targetObjs, entryPointArg, shaderInternal) .|> Ref )
+	aptrRef = aref |> pointer_from_objref |> Ref# |> (x) -> convert(Ptr{WGPUFragmentState}, x) |> Ref
+	return GPUFragmentState(aptrRef, (aref, args, shader, entryPointArg |> Ref, targetsArg, ctargets .|> Ref, targetObjs .|>Ref, entryPointArg, shaderInternal) .|> Ref )
 end
 
 mutable struct GPURenderPipeline
@@ -1074,7 +1068,8 @@ function createRenderPipeline(
 	depthStencilState = renderArgs[GPUDepthStencilState]
 	multiSampleState = renderArgs[GPUMultiSampleState]
 	fragmentState = renderArgs[GPUFragmentState]
-	pipelineDesc = partialInit(
+
+	pipelineDesc = GC.@preserve label partialInit(
 		WGPURenderPipelineDescriptor;
 		label = pointer(label),
 		layout = pipelinelayout.internal[],
@@ -1084,21 +1079,23 @@ function createRenderPipeline(
 		multisample = multiSampleState[],
 		fragment = fragmentState[]
 	)
-	renderpipeline =  wgpuDeviceCreateRenderPipeline(
+	
+	renderpipeline =  GC.@preserve pipelineDesc wgpuDeviceCreateRenderPipeline(
 		gpuDevice.internal[],
 		pipelineDesc |> pointer_from_objref
 	) |> Ref
+	
 	return GPURenderPipeline(
 		label,
 		renderpipeline,
-		pipelineDesc,
+		pipelineDesc |> Ref,
 		gpuDevice, 
-		pipelinelayout , 
-		vertexState , 
-		primitiveState , 
-		depthStencilState , 
-		multiSampleState , 
-		fragmentState 
+		pipelinelayout |> Ref , 
+		vertexState |> Ref, 
+		primitiveState |> Ref, 
+		depthStencilState |> Ref, 
+		multiSampleState |> Ref, 
+		fragmentState |> Ref 
 	)
 end
 
@@ -1122,6 +1119,7 @@ mutable struct GPURenderPassEncoder
 	internal
 	pipeline
 	cmdEncoder
+	desc
 end
 
 function createEntry(::Type{GPUColorAttachment}; args...)
@@ -1145,7 +1143,7 @@ function createEntry(::Type{GPUColorAttachments}; args...)
 		push!(attachmentObjs, obj)
 		push!(attachments, obj.internal[])
 	end
-	return GPUColorAttachments(attachments |> Ref, (attachments, attachmentObjs))
+	return GPUColorAttachments(attachments |> Ref, (attachments, attachmentObjs) .|> Ref)
 end
 
 function createEntry(::Type{GPUDepthStencilAttachment}; args...)
@@ -1155,22 +1153,30 @@ function createEntry(::Type{GPUDepthStencilAttachment}; args...)
 	return GPUDepthStencilAttachment(C_NULL |> Ref, nothing)
 end
 
+mutable struct RenderPassDescriptor
+	internal
+	colorAttachments
+	label
+	depthStencilAttachment
+	renderArgs
+end
+
 function createRenderPassFromPairs(renderPipeline; label=" RENDER PASS DESCRIPTOR ")
 	renderArgs = Dict()
 	for config in renderPipeline
 		renderArgs[config.first] = createEntry(config.first; config.second...).internal
 	end
 	# return renderArgs
-	colorAttachments = renderArgs[GPUColorAttachments]
+	colorAttachmentsIn = renderArgs[GPUColorAttachments]
 	depthStencilAttachment = get(renderArgs, GPUDepthStencilAttachment, C_NULL |> Ref)
-	a = partialInit(
+	a = GC.@preserve label colorAttachmentsIn partialInit(
 		WGPURenderPassDescriptor;
 		label = pointer(label),
-		colorAttachments = pointer(colorAttachments[]),
-		colorAttachmentCount = length(colorAttachments[]),
+		colorAttachments = pointer(colorAttachmentsIn[]),
+		colorAttachmentCount = length(colorAttachmentsIn[]),
 		depthStencilAttachment = depthStencilAttachment[]
 	)
-	return (a, colorAttachments, label, depthStencilAttachment, renderArgs)
+	return RenderPassDescriptor(a, colorAttachmentsIn, label, depthStencilAttachment, renderArgs)
 end
 
 mutable struct GPUCommandBuffer
@@ -1180,24 +1186,26 @@ mutable struct GPUCommandBuffer
 end
 
 function createCommandBuffer()
-
+	
 end
 
 mutable struct GPUCommandEncoder
 	label
 	internal
 	device
+	desc
 end
 
 mutable struct GPUComputePassEncoder
 	label
 	internal
 	cmdEncoder
+	desc
 end
 
 function createCommandEncoder(gpuDevice, label)
 	labelRef = label |> Ref
-	cmdEncDesc = partialInit(
+	cmdEncDesc = GC.@preserve label partialInit(
 				WGPUCommandEncoderDescriptor;
 				label = pointer(label)
 			) |> Ref
@@ -1205,29 +1213,30 @@ function createCommandEncoder(gpuDevice, label)
 		gpuDevice.internal[],
 		cmdEncDesc |> pointer_from_objref
 	) |> Ref
-	return GPUCommandEncoder(label, commandEncoder, gpuDevice)
+	return GPUCommandEncoder(label, commandEncoder, gpuDevice, cmdEncDesc)
 end
 
 function beginComputePass(cmdEncoder::GPUCommandEncoder; 
 			label = " COMPUTE PASS DESCRIPTOR ", 
 			timestampWrites = [])
+	desc = GC.@preserve label partialInit(
+		WGPUComputePassDescriptor;
+		label = pointer(label)
+	) |> Ref |> pointer_from_objref
 	computePass = wgpuCommandEncoderBeginComputePass(
 		cmdEncoder.internal[],
-		partialInit(
-			WGPUComputePassDescriptor;
-			label = pointer(label)
-		) |> Ref |> pointer_from_objref
-	) |> WGPURef
-	GPUComputePassEncoder(label, computePass, cmdEncoder)
+		desc
+	) |> Ref
+	GPUComputePassEncoder(label, computePass, cmdEncoder, desc)
 end
 
 function beginRenderPass(cmdEncoder::GPUCommandEncoder, renderPipelinePairs; label = " BEGIN RENDER PASS ")
-	(req, rest...) = createRenderPassFromPairs(renderPipelinePairs; label = label)
+	desc = createRenderPassFromPairs(renderPipelinePairs; label = label)
 	renderPass = wgpuCommandEncoderBeginRenderPass(
 		cmdEncoder.internal[],
-		req |> pointer_from_objref
+		desc.internal |> pointer_from_objref
 	) |> WGPURef
-	GPURenderPassEncoder(label, renderPass, renderPipelinePairs, cmdEncoder)
+	GPURenderPassEncoder(label, renderPass, renderPipelinePairs, cmdEncoder, desc)
 end
 
 function copyBufferToBuffer(
@@ -1254,19 +1263,134 @@ end
 
 function copyBufferToTexture(
 	cmdEncoder::GPUCommandEncoder,
-	source::GPUBuffer,
-	destination::GPUTexture,
-	copySize
+	source::Dict{Symbol, Any}, 
+	destination::Dict{Symbol, Any}, 
+	copySize::Dict{Symbol, Int64}
 )
+	rowAlignment = 256
+	bytesPerRow = source[:layout][:bytesPerRow]
+	@assert bytesPerRow % rowAlignment == 0 "BytesPerRow must be multiple of $rowAlignment"
+	origin = get(source, :origin, [:x=>0, :y=>0, :z=>0] |> Dict)
+	cOrigin = partialInit(
+		WGPUOrigin3D;
+		origin...
+	)
+	cDestination = partialInit(
+		WGPUImageCopyTexture;
+		texture = source[:texture].internal[],
+		mipLevel = get(source, :mipLevel, 0),
+		origin = cOrigin,
+		aspect = getEnum(WGPUTextureAspect, "All")
+	) |> pointer_from_objref
+	cSource = partialInit(
+		WGPUImageCopyBuffer;
+		buffer = destination[:buffer].internal[],
+		layout = partialInit(
+			WGPUTextureDataLayout;
+			destination[:layout]...
+		)
+	) |> pointer_from_objref
+	cCopySize = partialInit(
+		WGPUExtent3D;
+		copy...
+	) |> pointer_from_objref
+
+	wgpuCommandEncoderCopyBufferToTexture(
+		cmdEncoder.internal[],
+		cSource,
+		cDestination,
+		cCopySize
+	)
+end
+
+function copyTextureToBuffer(
+	cmdEncoder::GPUCommandEncoder, 
+	source::Dict{Symbol, Any}, 
+	destination::Dict{Symbol, Any}, 
+	copySize::Dict{Symbol, Int64}
+)
+	rowAlignment = 256
+	dest = Dict(destination)
+	bytesPerRow = dest[:layout][:bytesPerRow]
+	@assert bytesPerRow % rowAlignment == 0 "BytesPerRow must be multiple of $rowAlignment"
+	origin = get(source, :origin, [:x=>0, :y=>0, :z=>0] |> Dict)
+	cOrigin = partialInit(
+		WGPUOrigin3D;
+		origin...
+	)
+	cSource = partialInit(
+		WGPUImageCopyTexture;
+		texture = source[:texture].internal[],
+		mipLevel = get(source, :mipLevel, 0),
+		origin = cOrigin,
+		aspect = getEnum(WGPUTextureAspect, "All")
+	) |> pointer_from_objref
+	cDestination = partialInit(
+		WGPUImageCopyBuffer;
+		buffer = destination[:buffer].internal[],
+		layout = partialInit(
+			WGPUTextureDataLayout;
+			destination[:layout]... # should document these obscure
+		)
+	) |> pointer_from_objref
+	cCopySize = partialInit(
+		WGPUExtent3D;
+		copySize...
+	) |> pointer_from_objref
+
+	wgpuCommandEncoderCopyTextureToBuffer(
+		cmdEncoder.internal[],
+		cSource,
+		cDestination,
+		cCopySize
+	)
+end
+
+function copyTextureToTexture(
+	cmdEncoder::GPUCommandEncoder, 
+	source::Dict{Symbol, Any}, 
+	destination::Dict{Symbol, Any}, 
+	copySize::Dict{Symbol, Int64}
+)
+	origin1 = get(source, :origin, [:x=>0, :y=>0, :z=>0])
+	cOrigin1 = partialInit(
+		WGPUOrigin3D;
+		origin1...
+	)
+
+	cSource = partialInit(
+		WGPUImageCopyTexture;
+		texture = source[:texture].internal[],
+		mipLevel = get(source, :mipLevel, 0),
+		origin = COrigin1
+	) |> pointer_from_objref
+
+	origin2 = get(destination, :origin, [:x => 0, :y =>0, :z => 0])
+
+	cOrigin2 = partialInit(
+		WGPUOrigin3D;
+		origin2...
+	)
+
+	cDestination = partialInit(
+		WGPUImageCopyTexture;
+		texture = destination[:texture].internal[],
+		mipLevel = get(destination, :mipLevel, 0),
+		origin = cOrigin2
+	) |> pointer_from_objref
+
+	cCopySize = partialInit(
+		WGPUExtent3D;
+		copySize...
+	) |> pointer_from_objref
+
+	wgpuCommandEncoderCopyTextureToTexture(
+		cmdEncoder.internal[],
+		cSource,
+		cDestination,
+		cCopySize
+	)
 	
-end
-
-function copyTextureToBuffer()
-
-end
-
-function copyTextureToTexture()
-
 end
 
 function finish(cmdEncoder::GPUCommandEncoder; label = " CMD ENCODER COMMAND BUFFER ")
@@ -1309,13 +1433,13 @@ function setBindGroup(computePass::GPUComputePassEncoder,
 						dynamicOffsetsData::Vector{UInt32}, 
 						start::Int, 
 						dataLength::Int)
-	offsets = pointer(dynamicOffsetsData)
-	setbindgroup = wgpuComputePassEncoderSetBindGroup(
+	offsetcount = length(dynamicOffsetsData)
+	setbindgroup = wgpuRenderPassEncoderSetBindGroup(
 		computePass.internal[],
 		index,
 		bindGroup.internal[],
-		length(dynamicOffsetsData),
-		offsets,
+		offsetcount,
+		(offsetcount == 0) ? C_NULL : pointer(dynamicOffsetsData)
 	)
 	return nothing
 end
@@ -1326,14 +1450,13 @@ function setBindGroup(renderPass::GPURenderPassEncoder,
 						dynamicOffsetsData::Vector{UInt32}, 
 						start::Int, 
 						dataLength::Int)
-	offsets = pointer(dynamicOffsetsData)
-	
+	offsetcount = length(dynamicOffsetsData)
 	setbindgroup = wgpuRenderPassEncoderSetBindGroup(
 		renderPass.internal[],
 		index,
 		bindGroup.internal[],
-		length(dynamicOffsetsData),
-		offsets,
+		offsetcount,
+		offsetcount == 0 ? C_NULL : pointer(dynamicOffsetsData)
 	)
 	return nothing
 end
@@ -1347,8 +1470,13 @@ function dispatchWorkGroups(computePass::GPUComputePassEncoder, countX, countY=1
 	)
 end
 
-function dispatchWorkGroupsIndirect()
-
+function dispatchWorkGroupsIndirect(computePass::GPUComputePassEncoder, indirectBuffer, indirectOffset)
+	bufferId = indirectBuffer.internal[]
+	wgpuComputePassEncoderDispatchIndirect(
+		computePass.internal[],
+		bufferId,
+		indirectOffset
+	)
 end
 
 
@@ -1527,7 +1655,7 @@ function writeTexture(queue::GPUQueue; args...)
 end
 
 function readTexture()
-
+	
 end
 
 function readBuffer(gpuDevice, buffer, bufferOffset, size)
@@ -1551,378 +1679,14 @@ function writeBuffer(queue::GPUQueue, buffer, bufferOffset, data, dataOffset, si
 	
 end
 
-abstract type CanvasInterface end
+forceOffscreen = false
 
-abstract type GLFWCanvas end
-
-mutable struct GLFWX11Canvas <: GLFWCanvas
-	title::String
-	size::Tuple
-	display
-	windowRef # This has to be platform specific may be
-	windowX11
-	surface
-	surfaceDescriptor
-	XlibSurface
-	needDraw
-	requestDrawTimerRunning
-	changingPixelRatio
-	isMinimized::Bool
-	device
-	context
-	drawFunc
-end
-
-function attachDrawFunction(canvas::GLFWCanvas, f)
-	if canvas.drawFunc == nothing
-		canvas.drawFunc = f
-	end
-end
-
-function defaultInit(::Type{GLFWX11Canvas})
-	displayRef = Ref{Ptr{GLFW.Window}}()
-	windowRef = Ref{GLFW.Window}()
-	windowX11Ref = Ref{GLFW.Window}()
-	surfaceRef = Ref{WGPUSurface}()
-	XlibSurfaceRef = Ref{WGPUSurfaceDescriptorFromXlibWindow}()
-	surfaceDescriptorRef = Ref{WGPUSurfaceDescriptor}()
-	displayRef[] = GLFW.GetX11Display() 
-	title = "GLFW WGPU Window"
-	windowRef[] = window = GLFW.CreateWindow(1280, 960, title)
-	windowX11Ref[] = GLFW.GetX11Window(window)
-	XlibSurfaceRef[] = partialInit(
-				        WGPUSurfaceDescriptorFromXlibWindow;
-				        chain = partialInit(
-				            WGPUChainedStruct;
-				            next = C_NULL,
-				            sType = WGPUSType_SurfaceDescriptorFromXlibWindow
-				        ),
-				        display = displayRef[],
-				        window = windowX11Ref[].handle
-				    )
-	surfaceDescriptorRef[] = partialInit(
-				WGPUSurfaceDescriptor;
-				label = C_NULL,
-				nextInChain = pointer_from_objref(XlibSurfaceRef) 
-		   	)
-	surfaceRef[] = 	wgpuInstanceCreateSurface(
-	    C_NULL,
-		pointer_from_objref(surfaceDescriptorRef)
-	)
-	title = "GLFW Window"
-	canvas = GLFWX11Canvas(
-		title,
-		(400, 500),
-		displayRef,
-		windowRef,
-		windowX11Ref,
-		surfaceRef,
-		surfaceDescriptorRef,
-		XlibSurfaceRef,
-		false,
-		nothing,
-		false,
-		false,
-		backend.device,
-		nothing,
-		nothing
-	)
-	
-	setJoystickCallback(canvas)
-	setMonitorCallback(canvas)
-	setWindowCloseCallback(canvas)
-	setWindowPosCallback(canvas)
-	setWindowSizeCallback(canvas)
-	setWindowFocusCallback(canvas)
-	setWindowIconifyCallback(canvas)
-	setWindowMaximizeCallback(canvas)
-	setKeyCallback(canvas)
-	setCharModsCallback(canvas)
-	setMouseButtonCallback(canvas)
-	setScrollCallback(canvas)
-	setCursorPosCallback(canvas)
-	setDropCallback(canvas)
-
-	return canvas
-end
-
-function setJoystickCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (joystick, event) -> println("$joystick $event")
-	else
-		callback = f
-	end
-	GLFW.SetJoystickCallback(callback)	
-end
-
-function setMonitorCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (monitor, event) -> println("$monitor $event")
-	else
-		callback = f
-	end
-	GLFW.SetMonitorCallback(callback)	
-end
-
-function setWindowCloseCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (event) -> println("Window closed")
-	else
-		callback = f
-	end
-	GLFW.SetWindowCloseCallback(canvas.windowRef[], callback)
-end
-
-function setWindowPosCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, x, y) -> println("window position : $x $y")
-	else
-		callback = f
-	end
-	GLFW.SetWindowPosCallback(canvas.windowRef[], callback)	
-end
-
-function setWindowSizeCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, w, h) -> println("window size : $w $h")
-	else
-		callback = f
-	end
-	GLFW.SetWindowSizeCallback(canvas.windowRef[], callback)	
-end
-
-function setWindowFocusCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, focused) -> println("window focus : $focused")
-	else
-		callback = f
-	end
-	GLFW.SetWindowFocusCallback(canvas.windowRef[], callback)	
-end
-
-function setWindowIconifyCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, iconified) -> println("window iconify : $iconified")
-	else
-		callback = f
-	end
-	GLFW.SetWindowIconifyCallback(canvas.windowRef[], callback)	
-end
-
-function setWindowMaximizeCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, maximized) -> println("window maximized : $maximized")
-	else
-		callback = f
-	end
-	GLFW.SetWindowMaximizeCallback(canvas.windowRef[], callback)	
-end
-
-function setKeyCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, key, scancode, action, mods) -> begin
-			name = GLFW.GetKeyName(key, scancode)
-			if name == nothing
-				println("scancode $scancode ", action)
-			else
-				println("key $name ", action)
-			end
-		end
-	else
-		callback = f
-	end
-	GLFW.SetKeyCallback(canvas.windowRef[], callback)	
-end
-
-function setCharModsCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, c, mods) -> println("char: $c, mods : $mods")
-	else
-		callback = f
-	end
-	GLFW.SetCharModsCallback(canvas.windowRef[], callback)	
-end
-
-function setMouseButtonCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, button, action, mods) -> println("$button : $action : $mods")
-	else
-		callback = f
-	end
-	GLFW.SetMouseButtonCallback(canvas.windowRef[], callback)	
-end
-
-function setCursorPosCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, x, y) -> println("cursor $x : $y")
-	else
-		callback = f
-	end
-	GLFW.SetCursorPosCallback(canvas.windowRef[], callback)	
-end
-
-function setScrollCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, xoff, yoff) -> println("scroll $xoff : $yoff")
-	else
-		callback = f
-	end
-	GLFW.SetScrollCallback(canvas.windowRef[], callback)	
-end
-
-function setDropCallback(canvas::GLFWCanvas, f=nothing)
-	if f==nothing
-		callback = (_, paths) -> println("path $paths")
-	else
-		callback = f
-	end
-	GLFW.SetDropCallback(canvas.windowRef[], callback)	
-end
-
-mutable struct GPUCanvasContext
-	canvasRef::Ref{GLFWX11Canvas}
-	surfaceSize
-	surfaceId
-	internal
-	currentTexture
-	device
-	format::WGPUTextureFormat
-	usage::WGPUTextureUsage
-	colorSpace::WGPUPredefinedColorSpace
-	compositingAlphaMode
-	size
-	physicalSize
-	pixelRatio
-	logicalSize
-end
-
-function getContext(gpuCanvas::GLFWX11Canvas)
-	if gpuCanvas.context == nothing
-		return partialInit(
-			GPUCanvasContext;
-			canvasRef = Ref(gpuCanvas),
-			surfaceSize = (-1, -1),
-			surfaceId = gpuCanvas.surface[],
-			internal = nothing,
-			device = gpuCanvas.device,
-			compositingAlphaMode=nothing
-		)
-	else
-		return gpuCanvas.context
-	end
-end
-
-function config(a::T; args...) where T
-	fields = fieldnames(typeof(a[]))
-	for pair in args
-		if pair.first in fields
-			setproperty!(a[], pair.first, pair.second)
-		else
-			@error "Cannot set field $pair. Check if its a valid field for $T"
-		end
-	end
-end
-
-function unconfig(a::T) where T
-	for field in fieldnames(T)
-		setproperty!(a, field, defaultInit(fieldtype(T, field)))
-	end
-end
-
-function configure(
-	canvasContext::GPUCanvasContext;
-	device,
-	format,
-	usage,
-	viewFormats,
-	colorSpace,
-	compositingAlphaMode,
-	size
-)
-	unconfig(canvasContext)
-	canvasContext.device = device
-	canvasContext.format = format
-	canvasContext.usage = usage
-	canvasContext.colorSpance = colorSpace
-	canvasContext.compositingAlphaMode = compositingAlphaMode
-	canvasContext.size = size
-end
-
-function unconfigure(canvasContext::GPUCanvasContext)
-	canvasContext.device  = nothing
-	canvasContext.format = nothing
-	canvasContext.usage = nothing
-	canvasContext.colorSpance = nothing
-	canvasContext.compositingAlphaMode = nothing
-	canvasContext.size = nothing
-end
-
-function determineSize(cntxt::GPUCanvasContext)
-	pixelRatio = GLFW.GetWindowContentScale(cntxt.canvasRef[].windowRef[]) |> first
-	psize = GLFW.GetFramebufferSize(cntxt.canvasRef[].windowRef[])
-	cntxt.pixelRatio = pixelRatio
-	cntxt.physicalSize = psize
-	cntxt.logicalSize = (psize.width, psize.height)./pixelRatio
-	# TODO skipping event handlers for now
-end
-
-function getPreferredFormat(canvasContext::GPUCanvasContext)
-	# TODO return srgb
-end
-
-function getSurfaceIdFromCanvas(cntxt::GPUCanvasContext)
-	# TODO return cntxt
-end
-
-function getCurrentTexture(cntxt::GPUCanvasContext)
-	if cntxt.device.internal[] == C_NULL
-		@error "context must be configured before request for texture"
-		return
-	end
-	if cntxt.currentTexture == nothing
-		createNativeSwapChainMaybe(cntxt)
-		id = wgpuSwapChainGetCurrentTextureView(cntxt.internal[]) |> Ref
-		size = (cntxt.surfaceSize..., 1)
-		cntxt.currentTexture = GPUTextureView(
-			"swap chain", id, cntxt.device, nothing, size
-		)
-	end
-	return cntxt.currentTexture
-end
-
-function present(cntxt::GPUCanvasContext)
-	if cntxt.internal[] != C_NULL && cntxt.currentTexture.internal[] != C_NULL
-		wgpuSwapChainPresent(cntxt.internal[])
-	end
-	destroy(cntxt.currentTexture)
-	cntxt.currentTexture = nothing
-end
-
-function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
-	canvas = canvasCntxt.canvasRef[]
-	pSize = canvasCntxt.physicalSize
-	if pSize == canvasCntxt.surfaceSize
-		return
-	end
-	canvasCntxt.surfaceSize = pSize
-	canvasCntxt.usage = WGPUTextureUsage_RenderAttachment
-	presentMode = WGPUPresentMode_Fifo
-	swapChain = partialInit(
-		WGPUSwapChainDescriptor;
-		usage = canvasCntxt.usage,
-		format = canvasCntxt.format,
-		width = max(1, pSize[1]),
-		height = max(1, pSize[2]),
-		presentMode = presentMode
-	) |> Ref
-	if canvasCntxt.surfaceId == nothing
-		canvasCntxt.surfaceId = getSurfaceIdFromCanvas(canvas)
-	end
-	canvasCntxt.internal = wgpuDeviceCreateSwapChain(
-		canvasCntxt.device.internal[],
-		canvasCntxt.surfaceId,
-		swapChain
-	) |> Ref
+if forceOffscreen == true
+	include("offscreen.jl")
+elseif Sys.isapple()
+	include("glfw.jl")
+elseif Sys.islinux()
+	include("glfw.jl")
 end
 
 function destroy(texView::GPUTextureView)
@@ -2159,7 +1923,7 @@ end
 
 # TODO 
 function isdestroyable() 
-
+	
 end
 
 end

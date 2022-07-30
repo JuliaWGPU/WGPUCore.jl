@@ -36,7 +36,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
+canvas = WGPU.defaultInit(WGPU.OffscreenCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
@@ -49,7 +49,7 @@ bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBi
 bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
 if bindGroupLayout.internal[] == C_NULL
-	bindGroupLayouts = []
+	bindGroupLayouts = C_NULL
 else
 	bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
 end
@@ -118,16 +118,15 @@ end
 WGPU.attachDrawFunction(canvas, drawFunction)
 
 try
-	while !GLFW.WindowShouldClose(canvas.windowRef[])
-		# bufferDims = WGPU.BufferDimensions(ctxtSize...)
-		# bufferSize = bufferDims.padded_bytes_per_row*bufferDims.height
-		# outputBuffer = WGPU.createBuffer(
-			# "OUTPUT BUFFER",
-			# gpuDevice,
-			# bufferSize,
-			# ["MapRead", "CopyDst", "CopySrc"],
-			# false
-		# )
+		bufferDims = WGPU.BufferDimensions(ctxtSize...)
+		bufferSize = bufferDims.padded_bytes_per_row*bufferDims.height
+		outputBuffer = WGPU.createBuffer(
+			"OUTPUT BUFFER",
+			gpuDevice,
+			bufferSize,
+			["MapRead", "CopyDst", "CopySrc"],
+			false
+		)
 		nextTexture = WGPU.getCurrentTexture(presentContext[]) |> Ref
 		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
 		renderPassOptions = [
@@ -147,39 +146,37 @@ try
 		WGPU.setPipeline(renderPass, renderPipeline)
 		WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex= 0, firstInstance=0)
 		WGPU.endEncoder(renderPass)
-		# WGPU.copyTextureToBuffer(
-			# cmdEncoder,
-			# [
-				# :texture => nextTexture[],
-				# :mipLevel => 0,
-				# :origin => [
-					# :x => 0,
-					# :y => 0,
-					# :z => 0
-				# ] |> Dict
-			# ] |> Dict,
-			# [
-				# :buffer => outputBuffer,
-				# :layout => [
-					# :offset => 0,
-					# :bytesPerRow => bufferDims.padded_bytes_per_row,
-					# :rowsPerImage => 0
-				# ] |> Dict
-			# ] |> Dict,
-			# [
-				# :width => bufferDims.width,
-				# :height => bufferDims.height,
-				# :depthOrArrayLayers => 1
-			# ] |> Dict
-		# )
+		WGPU.copyTextureToBuffer(
+			cmdEncoder,
+			[
+				:texture => nextTexture[],
+				:mipLevel => 0,
+				:origin => [
+					:x => 0,
+					:y => 0,
+					:z => 0
+				] |> Dict
+			] |> Dict,
+			[
+				:buffer => outputBuffer,
+				:layout => [
+					:offset => 0,
+					:bytesPerRow => bufferDims.padded_bytes_per_row,
+					:rowsPerImage => 0
+				] |> Dict
+			] |> Dict,
+			[
+				:width => bufferDims.width,
+				:height => bufferDims.height,
+				:depthOrArrayLayers => 1
+			] |> Dict
+		)
 		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
 		WGPU.present(presentContext[])
-		# data = WGPU.readBuffer(gpuDevice, outputBuffer, 0,  [<0;61;23M] |> Int)
-		# datareshaped = reshape(data, (4, (ctxtSize |>reverse)...) .|> Int)
-		# img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, ctxtSize)
-		# save("triangle.png", img |> adjoint)
-		GLFW.PollEvents()
-	end
+		data = WGPU.readBuffer(gpuDevice, outputBuffer, 0,  bufferSize |> Int)
+		datareshaped = reshape(data, (4, (ctxtSize |>reverse)...) .|> Int)
+		img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, ctxtSize)
+		save("triangle.png", img |> adjoint)
 finally
 	WGPU.destroyWindow(canvas)
 end

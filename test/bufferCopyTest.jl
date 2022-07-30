@@ -14,9 +14,11 @@ for i in 1:n
 	data[i] = i
 end
 
+canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
+
 gpuDevice = WGPU.getDefaultDevice()
 
-GC.gc()
+# GC.gc()
 
 (buffer1, _) = WGPU.createBufferWithData(
 	gpuDevice, 

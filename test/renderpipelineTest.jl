@@ -37,7 +37,7 @@ shaderSource = Vector{UInt8}(
 	"""
 ) |> Ref
 
-canvas = WGPU.defaultInit(WGPU.GLFWX11Canvas);
+canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource[]) |> first;
 cshader = WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing);
@@ -57,7 +57,7 @@ else
 end
 
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
+swapChainFormat = WGPU.getPreferredFormat(canvas)
 
 
 renderpipelineOptions = [
@@ -173,7 +173,7 @@ vertexAttrib1 = WGPU.createEntry(
 	format="Float32x4",
 	offset=0,
 	shaderLocation=0
-).internal[]
+)
 
 
 vertexAttrib2 = WGPU.createEntry(
@@ -181,16 +181,16 @@ vertexAttrib2 = WGPU.createEntry(
 	format="Float32x2",
 	offset=16,
 	shaderLocation=1
-).internal[]
+)
 
 
 Test.@testset "RenderPipeline" begin
 	renderFragment = renderPipeline[WGPU.GPUFragmentState]
-	fs = unsafe_load(renderFragment.internal[])
+	fs = unsafe_load(convert(Ptr{WGPU.WGPUFragmentState}, renderFragment.internal[]))
 	Test.@test unsafe_string(fs.entryPoint) == "fs_main"
 
 	fsColorTarget = unsafe_load(fs.targets)
-	Test.@test fsColorTarget.format == WGPU.getEnum(WGPU.WGPUTextureFormat, "BGRA8UnormSrgb")
+	Test.@test fsColorTarget.format == WGPU.getEnum(WGPU.WGPUTextureFormat, "BGRA8Unorm")
 
 	Test.@test fsColorTarget.writeMask == 0x0000000f
 	fsblend = unsafe_load(fsColorTarget.blend)
@@ -208,9 +208,9 @@ Test.@testset "RenderPipeline" begin
 	buf1 = unsafe_wrap(Vector{WGPU.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
 	# check if buffers is alive
 	Test.@test vs.buffers != C_NULL
-	Test.@test attr1 == vertexAttrib1 
+	Test.@test attr1 == vertexAttrib1.internal[] 
 	Test.@test attrs == [attr1, attr2]
-	Test.@test attr2 == vertexAttrib2
+	Test.@test attr2 == vertexAttrib2.internal[]
 
 end
 

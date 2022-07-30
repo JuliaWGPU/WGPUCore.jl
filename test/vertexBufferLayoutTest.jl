@@ -1,3 +1,4 @@
+# GC.gc()
 using WGPU
 using Test
 
@@ -59,10 +60,11 @@ attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
 
 Test.@testset "BufferLayoutTest" begin
+	Test.@test buf.attributeCount == 2
 	Test.@test (vs.entryPoint |> unsafe_string) == "vs_main"
 	Test.@test vs.bufferCount == 1
 	Test.@test vs.buffers != C_NULL
-	Test.@test attr1 == vertexAttrib1[]
+	Test.@test attr1 == vertexAttrib1.internal[]
 	Test.@test attrs == [attr1, attr2]
-	Test.@test attr2 == vertexAttrib2[]
+	Test.@test attr2 == vertexAttrib2.internal[]
 end

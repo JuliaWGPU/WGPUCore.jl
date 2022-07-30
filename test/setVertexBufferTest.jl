@@ -1,5 +1,4 @@
 ## Load WGPU
-GC.gc()
 using WGPU
 using Test
 
@@ -33,7 +32,8 @@ vertexData =  cat([
        [-1, -1, -1, 1, 1, 1],
        [1, -1, -1, 1, 0, 1],
    ]..., dims=2) .|>  Float32
-   
+
+canvas = WGPU.defaultInit(WGPU.WGPUCanvas)
 gpuDevice = WGPU.getDefaultDevice()
 
 (vertexBuffer, tmpData) = WGPU.createBufferWithData(

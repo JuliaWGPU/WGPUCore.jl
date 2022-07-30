@@ -69,18 +69,18 @@ defaultInit(::Type{T}) where T = begin
 		for t = fieldnames(T)
 			push!(ins, defaultInit(fieldtype(T, t)))
 		end
-		return T(ins...)
-		t = WGPURef{T}(T(ins...))
+		t = T(ins...)
+		r = WGPURef(t)
 		f(x) = begin
 			global DEBUG
 			if DEBUG==true
-				@warn "Finalizing WGPURef $x"
+				# @warn "Finalizing WGPURef $x"
 			end
 			x = nothing
 		end
-		weakRefs[t] = ins
-		finalizer(f, t)
-		return t
+		weakRefs[r] = [r, ins...]
+		finalizer(f, r)
+		return r
 	end
 end
 
@@ -102,29 +102,31 @@ defaultInit(::Type{Tuple{T}}) where T = Tuple{T}(zeros(T))
 
 defaultInit(::Type{Ref{T}}) where T = Ref{T}()
 
+defaultInit(::Type{NTuple{N, T}}) where {N, T} = zeros(T, (N,)) |> NTuple{N, T}
+
 mutable struct WGPURef{T}
-	inner::Union{T, Nothing}
+	value::Union{T, Nothing}
 end
 
 function Base.getproperty(t::WGPURef{T}, s::Symbol) where T
-	tmp = getfield(t::WGPURef{T}, :inner)
+	tmp = getfield(t, :value)
 	return getproperty(tmp, s)
 end
 
 function Base.convert(::Type{T}, w::WGPURef{T}) where T
-	return getfield(w, :inner)
+	return getfield(w, :value)
 end
 
 function Base.getindex(w::WGPURef{T}) where T
-	return getfield(w, :inner)
+	return getfield(w, :value)
 end
 
 function Base.setindex!(w::WGPURef{T}, value) where T
-	setfield!(w, :inner, convert(T, value))
+	setfield!(w, :value, convert(T, value))
 end
 
 function Base.unsafe_convert(::Type{Ptr{T}}, w::Base.RefValue{WGPURef{T}}) where T
-	return convert(Ptr{T}, Ref(getfield(w[], :inner)) |> pointer_from_objref)
+	return convert(Ptr{T}, Ref(getfield(w[], :value)) |> pointer_from_objref)
 end
 
 function partialInit(target::Type{T}; fields...) where T
@@ -143,15 +145,15 @@ function partialInit(target::Type{T}; fields...) where T
 			push!(others, inPairs[field])
 		end
 	end
-	torigin = T(ins...)
-	t = WGPURef{T}(torigin)
+	t = T(ins...)
+	r = WGPURef(t)
 	f(x) = begin
-		@warn "Finalizing WGPURef $x"
+		# @warn "Finalizing WGPURef $x"
 		x = nothing
 	end
-	weakRefs[t] = [torigin, ins..., others...]
-	finalizer(f, t)
-	return t
+	weakRefs[r] = [r, (ins .|> Ref)..., (others .|>Ref)...]
+	finalizer(f, r)
+	return r
 end
 
 function addToRefs(a::T, args...) where T

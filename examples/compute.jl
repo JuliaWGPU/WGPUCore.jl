@@ -167,45 +167,54 @@ storageBuffer = wgpuDeviceCreateBuffer(device[],
 ## BindGroupLayout
 bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
     device[],
-    Ref(partialInit(WGPUBindGroupLayoutDescriptor;
+    partialInit(WGPUBindGroupLayoutDescriptor;
         label = pointer(Vector{UInt8}("Bind Group Layout")),
-        entries = pointer_from_objref(Ref(partialInit(
-            WGPUBindGroupLayoutEntry;
-            nextInChain = C_NULL,
-            binding = 0,
-            visibility = WGPUShaderStage_Compute,
-            buffer = partialInit(
-                WGPUBufferBindingLayout;
-                type=WGPUBufferBindingType_Storage
-            ),
-            sampler = defaultInit(
-                WGPUSamplerBindingLayout;
-            ),
-            texture = defaultInit(
-                WGPUTextureBindingLayout;
-            ),
-            storageTexture = defaultInit(
-                WGPUStorageTextureBindingLayout;
-            )
-           ))),
+        entries = pointer(
+        	[
+        		partialInit(
+		            WGPUBindGroupLayoutEntry;
+		            nextInChain = C_NULL,
+		            binding = 0,
+		            visibility = WGPUShaderStage_Compute,
+		            buffer = partialInit(
+		                WGPUBufferBindingLayout;
+		                type=WGPUBufferBindingType_Storage
+		            ),
+		            # sampler = defaultInit(
+		                # WGPUSamplerBindingLayout;
+		            # ),
+		            # texture = defaultInit(
+		                # WGPUTextureBindingLayout;
+		            # ),
+		            # storageTexture = defaultInit(
+		                # WGPUStorageTextureBindingLayout;
+		            # )
+           		)[],
+           	]
+        ),
         entryCount = 1
-       ))
-   )
+	) |> Ref
+)
 
 ## BindGroup
 bindGroup = wgpuDeviceCreateBindGroup(
     device[],
-    pointer_from_objref(Ref(partialInit(
+    partialInit(
         WGPUBindGroupDescriptor;
         label = pointer(Vector{UInt8}("Bind Group")),
         layout = bindGroupLayout,
-        entries = pointer_from_objref(Ref(partialInit(WGPUBindGroupEntry;
+        entries = pointer(
+        	[
+        		partialInit(WGPUBindGroupEntry;
                               binding = 0,
                               buffer = storageBuffer,
                               offset = 0,
-                              size = sizeof(numbers)))),
+                              size = sizeof(numbers))[]
+           	]
+         ),
         entryCount = 1
-       ))))
+   ) |> Ref
+)
 
 
 ## bindGroupLayouts 
@@ -214,18 +223,18 @@ bindGroupLayouts = [bindGroupLayout,]
 ## Pipeline Layout
 pipelineLayout = wgpuDeviceCreatePipelineLayout(
     device[],
-    pointer_from_objref(Ref(partialInit(
+    partialInit(
         WGPUPipelineLayoutDescriptor;
         bindGroupLayouts = pointer(bindGroupLayouts),
         bindGroupLayoutCount = 1
-       )
-    )))
+    ) |> Ref
+)
 
 
 ## compute pipeline
 computePipeline = wgpuDeviceCreateComputePipeline(
     device[],
-    pointer_from_objref(Ref(partialInit(
+    partialInit(
         WGPUComputePipelineDescriptor,
         layout = pipelineLayout,
         compute = partialInit(
@@ -233,8 +242,8 @@ computePipeline = wgpuDeviceCreateComputePipeline(
              _module = shader,
              entryPoint = pointer(Vector{UInt8}("main"))
             )
-            ))))
-
+    ) |> Ref
+)
 ## encoder
 encoder = wgpuDeviceCreateCommandEncoder(device[],
     pointer_from_objref(Ref(partialInit(

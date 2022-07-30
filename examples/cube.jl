@@ -15,6 +15,7 @@ shaderSource = Vector{UInt8}(
 	struct Locals {
 	    transform: mat4x4<f32>,
 	};
+	
 	@group(0) @binding(0)
 	var<uniform> r_locals: Locals;
 
@@ -50,7 +51,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPU.defaultInit(WGPU.GLFWX11Canvas);
+canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
@@ -133,7 +134,7 @@ uniformData = ones(Float32, (4, 4)) |> Diagonal |> Matrix
 	["Uniform", "CopyDst"]
 )
 
-renderTextureFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
+renderTextureFormat = WGPU.getPreferredFormat(canvas)
 
 texture = WGPU.createTexture(
 	gpuDevice,
@@ -210,7 +211,7 @@ bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBi
 bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
 if bindGroupLayout.internal[] == C_NULL
-	bindGroupLayouts = C_NULL
+	bindGroupLayouts = []
 else
 	bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
 end
