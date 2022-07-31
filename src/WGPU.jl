@@ -818,8 +818,8 @@ function createComputePipeline(gpuDevice, label, pipelinelayout, computeStage)
 			layout = pipelinelayout.internal[],
 			compute = computeStage.internal[]
 		) |> Ref
-	)
-	GPUComputePipeline(label, Ref(computepipeline), gpuDevice, pipelinelayout)
+	) |> Ref
+	GPUComputePipeline(label, computepipeline, gpuDevice, pipelinelayout)
 end
 
 mutable struct GPUVertexAttribute 
