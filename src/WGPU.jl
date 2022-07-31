@@ -524,7 +524,7 @@ struct WGPUTextureEntry <: WGPUEntryType end
 
 struct WGPUStorageTextureEntry <: WGPUEntryType end
 
-function createEntry(::Type{WGPUBufferEntry}; args...)
+function createLayoutEntry(::Type{WGPUBufferEntry}; args...)
 	# binding::Int,
 	# visibility::Int,
 	# buffertype::WGPUBufferBindingType)
@@ -539,7 +539,7 @@ function createEntry(::Type{WGPUBufferEntry}; args...)
 	)
 end
 
-function createEntry(::Type{WGPUSamplerEntry}; args...)
+function createLayoutEntry(::Type{WGPUSamplerEntry}; args...)
 	# binding::Int,
 	# visibility::Int,
 	# sampertype::WGPUBufferBindingType
@@ -554,7 +554,7 @@ function createEntry(::Type{WGPUSamplerEntry}; args...)
 	)
 end
 
-function createEntry(::Type{WGPUTextureEntry}; args...)
+function createLayoutEntry(::Type{WGPUTextureEntry}; args...)
 	# binding::UInt32 = 0,
 	# visibility::UInt32 = 0,
 	# type::WGPUTextureSampleType = WGPUTextureSampleType_Float,
@@ -573,7 +573,7 @@ function createEntry(::Type{WGPUTextureEntry}; args...)
 	)
 end
 
-function createEntry(::Type{WGPUStorageTextureEntry}; args...)
+function createLayoutEntry(::Type{WGPUStorageTextureEntry}; args...)
 	# binding,
 	# visibility,
 	# access::WGPUStorageTextureAccess,
@@ -620,27 +620,29 @@ function createBindGroupEntry(::Type{GPUSampler}; args...)
 	)
 end
 
-function makeEntryList(entries)
-	cEntries = C_NULL
+function makeLayoutEntryList(entries)
+	@assert typeof(entries) <: Array "Entries should be an array"
+	cEntries = WGPUBindGroupLayoutEntry[]
 	if length(entries) > 0
-		cEntries = WGPUBindGroupLayoutEntry[]
 		for entry in entries
-			push!(cEntries, createEntry(entry.first; entry.second...))
+			push!(cEntries, createLayoutEntry(entry.first; entry.second...))
 		end
 	end
 	return cEntries
 end
 
 function createBindGroupLayout(gpuDevice, label, entries)
+	@assert typeof(entries) <: Array "Entries should be an array"
+	@info "Layout" entries
 	bindGroupLayout = C_NULL
-	if entries != C_NULL && length(entries) > 0
+	if length(entries) > 0
 		bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
 			gpuDevice.internal[],
 			Ref(partialInit(
 				WGPUBindGroupLayoutDescriptor;
 				label = pointer(label),
-				entries = entries == C_NULL ? C_NULL : pointer(entries), # assuming array of entries
-				entryCount = entries == C_NULL ? 0 : length(entries)
+				entries = pointer(entries), # assuming array of entries
+				entryCount = length(entries)
 			))
 		)
 	end
@@ -656,12 +658,9 @@ mutable struct GPUBindGroup
 end
 
 function makeBindGroupEntryList(entries)
-	if entries == C_NULL
-		return C_NULL
-	end
-	cEntries = C_NULL
+	@assert typeof(entries) <: Array "Entries should be an array"
+	cEntries = WGPUBindGroupEntry[]
 	if length(entries) > 0
-		cEntries = WGPUBindGroupEntry[]
 		for entry in entries
 			push!(cEntries, createBindGroupEntry(entry.first; entry.second...))
 		end
@@ -670,16 +669,18 @@ function makeBindGroupEntryList(entries)
 end
 
 function createBindGroup(label, gpuDevice, bindingLayout, entries)
+	@assert typeof(entries) <: Array "Entries should be an array"
+	@info "BindGroup" entries
 	bindGroup = C_NULL
-	if entries != C_NULL && length(entries) > 0
+	if length(entries) > 0
 		bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
 			gpuDevice.internal[],
 			Ref(partialInit(
 				WGPUBindGroupDescriptor;
 				label = pointer(label),
 				layout = bindingLayout.internal[],
-				entries = entries == C_NULL ? C_NULL : pointer(entries),
-				entryCount = entries == C_NULL ? 0 : length(entries)
+				entries = pointer(entries),
+				entryCount = length(entries)
 			))
 		)
 	end
@@ -687,7 +688,7 @@ function createBindGroup(label, gpuDevice, bindingLayout, entries)
 end
 
 function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-	cBindingLayoutsList = Ref(makeEntryList(bindingLayouts))
+	cBindingLayoutsList = Ref(makeLayoutEntryList(bindingLayouts))
 	cBindingsList = Ref(makeBindGroupEntryList(bindings))
 	bindGroupLayout = createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
 	bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
@@ -1447,7 +1448,7 @@ function setBindGroup(computePass::GPUComputePassEncoder,
 						start::Int, 
 						dataLength::Int)
 	offsetcount = length(dynamicOffsetsData)
-	setbindgroup = wgpuRenderPassEncoderSetBindGroup(
+	setbindgroup = wgpuComputePassEncoderSetBindGroup(
 		computePass.internal[],
 		index,
 		bindGroup.internal[],

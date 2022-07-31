@@ -99,7 +99,7 @@ computePass = WGPU.beginComputePass(commandEncoder)
 WGPU.setPipeline(computePass, computePipeline)
 WGPU.setBindGroup(computePass, 0, bindGroup, UInt32[], 0, 99999)
 WGPU.dispatchWorkGroups(computePass, n, 1, 1)
-# WGPU.endComputePass(computePass)
-# WGPU.submit(gpuDevice.queue, [WGPU.finish(commandEncoder),])
-# WGPU.readBuffer(gpuDevice, buffer2, 0, sizeof(data))
-# 
+WGPU.endComputePass(computePass)
+WGPU.submit(gpuDevice.queue, [WGPU.finish(commandEncoder),])
+WGPU.readBuffer(gpuDevice, buffer2, 0, sizeof(data))
+
