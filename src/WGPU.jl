@@ -633,19 +633,16 @@ end
 
 function createBindGroupLayout(gpuDevice, label, entries)
 	@assert typeof(entries) <: Array "Entries should be an array"
-	@info "Layout" entries
-	bindGroupLayout = C_NULL
-	if length(entries) > 0
-		bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
-			gpuDevice.internal[],
-			Ref(partialInit(
-				WGPUBindGroupLayoutDescriptor;
-				label = pointer(label),
-				entries = pointer(entries), # assuming array of entries
-				entryCount = length(entries)
-			))
-		)
-	end
+	count = length(entries)
+	bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
+		gpuDevice.internal[],
+		Ref(partialInit(
+			WGPUBindGroupLayoutDescriptor;
+			label = pointer(label),
+			entries = count == 0 ? C_NULL : pointer(entries), # assuming array of entries
+			entryCount = count
+		))
+	)
 	GPUBindGroupLayout(label, Ref(bindGroupLayout), gpuDevice, entries)
 end
 
@@ -670,20 +667,17 @@ end
 
 function createBindGroup(label, gpuDevice, bindingLayout, entries)
 	@assert typeof(entries) <: Array "Entries should be an array"
-	@info "BindGroup" entries
-	bindGroup = C_NULL
-	if length(entries) > 0
-		bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
-			gpuDevice.internal[],
-			Ref(partialInit(
-				WGPUBindGroupDescriptor;
-				label = pointer(label),
-				layout = bindingLayout.internal[],
-				entries = pointer(entries),
-				entryCount = length(entries)
-			))
-		)
-	end
+	count = length(entries)
+	bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
+		gpuDevice.internal[],
+		partialInit(
+			WGPUBindGroupDescriptor;
+			label = pointer(label),
+			layout = bindingLayout.internal[],
+			entries = count == 0 ? C_NULL : pointer(entries),
+			entryCount = count
+		) |> Ref
+	)
 	GPUBindGroup(label, Ref(bindGroup), bindingLayout, gpuDevice, entries)
 end
 
@@ -731,12 +725,10 @@ mutable struct GPUShaderModule
 end
 
 function loadWGSL(buffer::Vector{UInt8}; name=" UnnamedShader ")
-	b = buffer
-	bufPointer = pointer(b)
-	wgslDescriptor = GC.@preserve bufPointer Ref(WGPUShaderModuleWGSLDescriptor(
+	wgslDescriptor = GC.@preserve buffer WGPUShaderModuleWGSLDescriptor(
 		defaultInit(WGPUChainedStruct),
-		bufPointer
-	))
+		pointer(buffer)
+	) |> Ref
 	a = partialInit(
 		WGPUShaderModuleDescriptor;
 		nextInChain = pointer_from_objref(wgslDescriptor),
@@ -747,10 +739,10 @@ end
 
 function loadWGSL(buffer::IOBuffer; name= " UnknownShader ")
 	b = read(buffer)
-	wgslDescriptor = Ref(WGPUShaderModuleWGSLDescriptor(
+	wgslDescriptor = WGPUShaderModuleWGSLDescriptor(
 		defaultInit(WGPUChainedStruct),
 		pointer(b)
-	))
+	) |> Ref
 	a = partialInit(
 		WGPUShaderModuleDescriptor;
 		nextInChain = pointer_from_objref(wgslDescriptor),
@@ -761,10 +753,10 @@ end
 
 function loadWGSL(file::IOStream; name= " UnknownShader ")
 	b = read(file)
-	wgslDescriptor = Ref(WGPUShaderModuleWGSLDescriptor(
+	wgslDescriptor = WGPUShaderModuleWGSLDescriptor(
 		defaultInit(WGPUChainedStruct),
 		pointer(b)
-	))
+	) |> Ref
 	a = partialInit(
 		WGPUShaderModuleDescriptor;
 		nextInChain = pointer_from_objref(wgslDescriptor),

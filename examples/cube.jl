@@ -51,8 +51,8 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
-gpuDevice = WGPU.getDefaultDevice();
+canvas = WGPU.defaultInit(WGPU.WGPUCanvas)
+gpuDevice = WGPU.getDefaultDevice()
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
 

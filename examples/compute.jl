@@ -110,7 +110,7 @@ wgpuAdapterRequestDevice(
 
                  
 ##
-b = read("WGPU.jl/examples/shader.wgsl")  
+b = read("examples/shader.wgsl")  
 wgslDescriptor = WGPUShaderModuleWGSLDescriptor(
         defaultInit(WGPUChainedStruct),
         pointer(b)
@@ -133,7 +133,7 @@ function load_wgsl(codeBuffer::Union{IOStream, IOBuffer})
 end
 
 
-shaderSource = WGPU.loadWGSL(open("WGPU.jl/examples/shader.wgsl")) |> first
+shaderSource = WGPU.loadWGSL(open("examples/shader.wgsl")) |> first
 
 
 ##
