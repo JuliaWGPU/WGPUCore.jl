@@ -205,22 +205,22 @@ function requestAdapter(; canvas=nothing, powerPreference = defaultInit(WGPUPowe
         adapter[]
     )
 
-    c_propertiesRef = partialInit(
+    c_properties = partialInit(
     	WGPUAdapterProperties
-   	) |> Ref
+   	)
    	
-   	c_propertiesPtr = c_propertiesRef |> pointer_from_objref
+   	c_propertiesPtr = c_properties |> pointer_from_objref
 
     wgpuAdapterGetProperties(adapter[], c_propertiesPtr)
     g = convert(Ptr{WGPUAdapterProperties}, c_propertiesPtr)
     h = GC.@preserve c_propertiesPtr unsafe_load(g)
-    supportedLimitsRef = partialInit(
+    supportedLimits = partialInit(
     	WGPUSupportedLimits;
-   	) |> Ref
-    supportedLimitsPtr = supportedLimitsRef |> pointer_from_objref
+   	)
+    supportedLimitsPtr = supportedLimits |> pointer_from_objref
     GC.@preserve supportedLimitsPtr wgpuAdapterGetLimits(adapter[], supportedLimitsPtr)
     g = convert(Ptr{WGPUSupportedLimits}, supportedLimitsPtr)
-    h = GC.@preserve supportedLimitsPtr unsafe_load(g)
+    h = GC.@preserve supportedLimits unsafe_load(g)
     features = []
     partialInit(
 		GPUAdapter;
@@ -228,9 +228,9 @@ function requestAdapter(; canvas=nothing, powerPreference = defaultInit(WGPUPowe
    	    features = features,
    	    internal = adapter,
    	    limits = h.limits,
-   	    properties = c_propertiesRef,
+   	    properties = c_properties,
    	    options = adapterOptions,
-   	    supportedLimits = supportedLimitsRef,
+   	    supportedLimits = supportedLimits,
    	    extras = adapterExtras
     )
 end
@@ -259,7 +259,7 @@ function requestDevice(gpuAdapter::GPUAdapter;
     	tracePath = pointer(tracepath)
    	)
    	
-    wgpuLimits = partialInit(WGPULimits; maxBindGroups = 4) # TODO set limits
+    wgpuLimits = partialInit(WGPULimits; maxBindGroups = 2) # TODO set limits
     wgpuRequiredLimits = partialInit(
    		WGPURequiredLimits; 
 		nextInChain = C_NULL,
@@ -634,15 +634,18 @@ end
 function createBindGroupLayout(gpuDevice, label, entries)
 	@assert typeof(entries) <: Array "Entries should be an array"
 	count = length(entries)
-	bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
-		gpuDevice.internal[],
-		Ref(partialInit(
-			WGPUBindGroupLayoutDescriptor;
-			label = pointer(label),
-			entries = count == 0 ? C_NULL : pointer(entries), # assuming array of entries
-			entryCount = count
-		))
-	)
+	bindGroupLayout = C_NULL
+	if count > 0
+		bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
+			gpuDevice.internal[],
+			Ref(partialInit(
+				WGPUBindGroupLayoutDescriptor;
+				label = pointer(label),
+				entries = count == 0 ? C_NULL : pointer(entries), # assuming array of entries
+				entryCount = count
+			))
+		)
+	end
 	GPUBindGroupLayout(label, Ref(bindGroupLayout), gpuDevice, entries)
 end
 
@@ -668,30 +671,29 @@ end
 function createBindGroup(label, gpuDevice, bindingLayout, entries)
 	@assert typeof(entries) <: Array "Entries should be an array"
 	count = length(entries)
-	bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
-		gpuDevice.internal[],
-		partialInit(
-			WGPUBindGroupDescriptor;
-			label = pointer(label),
-			layout = bindingLayout.internal[],
-			entries = count == 0 ? C_NULL : pointer(entries),
-			entryCount = count
-		) |> Ref
-	)
+	bindGroup = C_NULL
+	if bindingLayout.internal[] != C_NULL && count > 0
+		bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
+			gpuDevice.internal[],
+			partialInit(
+				WGPUBindGroupDescriptor;
+				label = pointer(label),
+				layout = bindingLayout.internal[],
+				entries = count == 0 ? C_NULL : pointer(entries),
+				entryCount = count
+			) |> Ref
+		)
+	end
 	GPUBindGroup(label, Ref(bindGroup), bindingLayout, gpuDevice, entries)
 end
 
 function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+	@assert length(bindings) == length(bindingLayouts)
 	cBindingLayoutsList = Ref(makeLayoutEntryList(bindingLayouts))
 	cBindingsList = Ref(makeBindGroupEntryList(bindings))
 	bindGroupLayout = createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
 	bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
-	if bindGroupLayout.internal[] == C_NULL
-		bindGroupLayouts = []
-	else
-		bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
-	end
-	return (bindGroupLayouts, bindGroup)
+	return (bindGroupLayout, bindGroup)
 end
 
 mutable struct GPUPipelineLayout
@@ -702,20 +704,23 @@ mutable struct GPUPipelineLayout
 	descriptor
 end
 
-function createPipelineLayout(gpuDevice, label, bindGroupLayouts)
-	@assert typeof(bindGroupLayouts) <: Array "bindGroupLayouts should be an array"
-	layoutCount = length(bindGroupLayouts)
-	pipelineDescriptor = GC.@preserve bindGroupLayouts label partialInit(
+function createPipelineLayout(gpuDevice, label, bindGroupLayoutObj)
+	bindGroupLayoutArray = []
+	if bindGroupLayoutObj.internal[] != C_NULL
+		bindGroupLayoutArray = map((x) -> x.internal[], [bindGroupLayoutObj,])
+	end
+	layoutCount = length(bindGroupLayoutArray)
+	pipelineDescriptor = GC.@preserve bindGroupLayoutObj label partialInit(
 				WGPUPipelineLayoutDescriptor;
 				label = pointer(label),
-				bindGroupLayouts = (layoutCount == 0) ? C_NULL : pointer(bindGroupLayouts),
+				bindGroupLayouts = (layoutCount == 0) ? C_NULL : pointer(bindGroupLayoutArray),
 				bindGroupLayoutCount = layoutCount
 			) |> Ref
 	pipelineLayout = wgpuDeviceCreatePipelineLayout(
 		gpuDevice.internal[],
 		pipelineDescriptor
 	) |> Ref
-	GPUPipelineLayout(label, pipelineLayout, gpuDevice, bindGroupLayouts, pipelineDescriptor)
+	GPUPipelineLayout(label, pipelineLayout, gpuDevice, bindGroupLayoutObj, pipelineDescriptor)
 end	
 
 mutable struct GPUShaderModule
