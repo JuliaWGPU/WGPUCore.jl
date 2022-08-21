@@ -191,3 +191,4 @@ function listPartials(::Type{T}) where T <: Cenum
 	pairs = CEnum.name_value_pairs(T)
 	map((x) -> split(string(x[1]), "_")[end], pairs)
 end
+

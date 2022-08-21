@@ -74,7 +74,7 @@ function getContext(gpuCanvas::OffscreenCanvas)
 			internal = nothing,
 			device = gpuCanvas.device,
 			compositingAlphaMode=nothing,
-			physicalSize=(1280, 960),
+			physicalSize=(500, 500),
 			pixelRatio = (1, 1),
 			usage = getEnum(WGPUTextureUsage, "RenderAttachment")
 		)

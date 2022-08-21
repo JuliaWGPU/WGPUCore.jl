@@ -19,7 +19,7 @@ end
 abstract type WGPUCanvasBase <: AbstractCanvasInterface end
 
 function drawFrame(canvas::T) where T<:WGPUCanvasBase
-	@error "Needs impolementation"
+	@error "Needs implementation"
 end
 
 function requestDraw(canvas::T) where T<:WGPUCanvasBase

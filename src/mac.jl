@@ -34,7 +34,7 @@ function defaultInit(::Type{MacCanvas})
 	title = "Offscreen Window"
 	canvas = MacCanvas(
 		title,
-		(400, 500),
+		(500, 500),
 		nothing,
 		false,
 		nothing,
@@ -74,7 +74,7 @@ function getContext(gpuCanvas::MacCanvas)
 			internal = nothing,
 			device = gpuCanvas.device,
 			compositingAlphaMode=nothing,
-			physicalSize=(1280, 960),
+			physicalSize=(500, 500),
 			pixelRatio = (1, 1),
 			usage = getEnum(WGPUTextureUsage, "RenderAttachment")
 		)
@@ -174,7 +174,11 @@ function createNewTextureMaybe(canvasCntxt::GPUCanvasContextOffline)
 end
 
 function destroyWindow(canvas::MacCanvas)
-	return nothing
+	if canvas.windowRef == nothing
+		return nothing
+	else 
+		DestroyWindow(canvas.windowRef[])
+	end
 end
 
 const WGPUCanvas = MacCanvas
