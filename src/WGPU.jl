@@ -435,9 +435,11 @@ mutable struct GPUTextureView
 	device
 	texture
 	size
+	desc
 end
 ##
 function createView(gpuTexture::GPUTexture; dimension=nothing)
+	gpuTextureInternal = gpuTexture.internal[]
 	dimension = split(string(gpuTexture.texInfo["dimension"]), "_")[end]
 	T = WGPUTextureViewDimension
 	pairs = CEnum.name_value_pairs(T)
@@ -456,15 +458,17 @@ function createView(gpuTexture::GPUTexture; dimension=nothing)
 		baseMipLevel = 0, # TODO
 		mipLevelCount = 1, # TODO
 		baseArrayLayer = 0, # TODO
-		arrayLayerCount = 1  # TODO
+		arrayLayerCount = 1,  # TODO
+		texture = gpuTexture |> Ref
 	) |> Ref
-	internal = wgpuTextureCreateView(gpuTexture.internal[], viewDescriptor) |> Ref
+	view = GC.@preserve gpuTextureInternal wgpuTextureCreateView(gpuTexture.internal[], viewDescriptor) |> Ref
 	return GPUTextureView(
 		gpuTexture.label,
-		internal,
+		view,
 		gpuTexture.device,
-		gpuTexture,
-		gpuTexture.texInfo["size"]
+		gpuTexture |> Ref,
+		gpuTexture.texInfo["size"],
+		viewDescriptor
 	)
 end
 
@@ -921,16 +925,23 @@ mutable struct GPUStencilFaceState
 	internal
 	strongRefs
 end
+# 
+# function createEntry(::Type{GPUStencilFaceState}; args...)
+	# a = partialInit(
+		# WGPUStencilFaceState;
+		# compare = args[:compare],
+		# failOp = args[:failOp],
+		# depthFailOp = args[:depthFailOp],
+		# passOp = args[:passOp]
+	# ) |> Ref
+	# return GPUStencilFaceState(a, args)
+# end
 
-function createEntry(::Type{GPUStencilFaceState}; args...)
-	a = partialInit(
+defaultInit(::Type{WGPUStencilFaceState}) = begin
+	partialInit(
 		WGPUStencilFaceState;
-		compare = args[:compare],
-		failOp = args[:failOp],
-		depthFailOp = args[:depthFailOp],
-		passOp = args[:passOp]
-	) |> Ref
-	return GPUStencilFaceState(a, args)
+		compare=WGPUCompareFunction_Always
+	)
 end
 
 mutable struct GPUDepthStencilState
@@ -939,17 +950,20 @@ mutable struct GPUDepthStencilState
 end
 
 function createEntry(::Type{GPUDepthStencilState}; args...)
-	a = nothing
+	aref = nothing
 	if length(args) > 0 && args != C_NULL
-		aref = Ref(partialInit(
+		aref = partialInit(
 			WGPUDepthStencilState;
-			args...
-		))
-		a = pointer_from_objref(aref) |> Ref
+			format = args[:format],
+			depthWriteEnabled = args[:depthWriteEnabled],
+			depthCompare = args[:depthCompare],
+			stencilReadMask = get(args, :stencilReadMask, 0xffffffff),
+			stencilWriteMask = get(args, :stencilWriteMask, 0xffffffff)
+		) |> pointer_from_objref |> Ref
 	else
-		a = C_NULL |> Ref
+		aref = C_NULL |> Ref
 	end
-	return GPUDepthStencilState(a, args)
+	return GPUDepthStencilState(aref, args |> Ref)
 end
 
 mutable struct GPUMultiSampleState
@@ -1074,6 +1088,7 @@ function createRenderPipeline(
 		obj = createEntry(state.first; state.second...)
 		renderArgs[state.first] = obj.internal
 	end
+	
 	vertexState = renderArgs[GPUVertexState]
 	primitiveState = renderArgs[GPUPrimitiveState]
 	depthStencilState = renderArgs[GPUDepthStencilState]
@@ -1120,6 +1135,12 @@ mutable struct GPUColorAttachment
 	strongRefs
 end
 
+
+mutable struct GPUDepthStencilAttachments
+	internal
+	strongRefs
+end
+
 mutable struct GPUDepthStencilAttachment 
 	internal
 	strongRefs
@@ -1131,6 +1152,7 @@ mutable struct GPURenderPassEncoder
 	pipeline
 	cmdEncoder
 	desc
+	renderArgs
 end
 
 function createEntry(::Type{GPUColorAttachment}; args...)
@@ -1143,13 +1165,14 @@ function createEntry(::Type{GPUColorAttachment}; args...)
 		loadOp = args[:loadOp],
 		storeOp = args[:storeOp]
 	)
-	return GPUColorAttachment(a, (args, textureView))
+	return GPUColorAttachment(a, (args, textureView) .|> Ref)
 end
+
 
 function createEntry(::Type{GPUColorAttachments}; args...)
 	attachments = WGPURenderPassColorAttachment[]
 	attachmentObjs = GPUColorAttachment[]
-	for attachment in args[:attachments]
+	for attachment in get(args, :attachments, [])
 		obj = createEntry(attachment.first; attachment.second...)
 		push!(attachmentObjs, obj)
 		push!(attachments, obj.internal[])
@@ -1157,37 +1180,31 @@ function createEntry(::Type{GPUColorAttachments}; args...)
 	return GPUColorAttachments(attachments |> Ref, (attachments, attachmentObjs) .|> Ref)
 end
 
+
 function createEntry(::Type{GPUDepthStencilAttachment}; args...)
-	if length(args) > 0
-		# TODO
-	end
-	return GPUDepthStencilAttachment(C_NULL |> Ref, nothing)
-end
-
-mutable struct RenderPassDescriptor
-	internal
-	colorAttachments
-	label
-	depthStencilAttachment
-	renderArgs
-end
-
-function createRenderPassFromPairs(renderPipeline; label=" RENDER PASS DESCRIPTOR ")
-	renderArgs = Dict()
-	for config in renderPipeline
-		renderArgs[config.first] = createEntry(config.first; config.second...).internal
-	end
-	# return renderArgs
-	colorAttachmentsIn = renderArgs[GPUColorAttachments]
-	depthStencilAttachment = get(renderArgs, GPUDepthStencilAttachment, C_NULL |> Ref)
-	a = GC.@preserve label colorAttachmentsIn partialInit(
-		WGPURenderPassDescriptor;
-		label = pointer(label),
-		colorAttachments = pointer(colorAttachmentsIn[]),
-		colorAttachmentCount = length(colorAttachmentsIn[]),
-		depthStencilAttachment = depthStencilAttachment[]
+	depthview = args[:view]
+	a = GC.@preserve depthview partialInit(
+		WGPURenderPassDepthStencilAttachment;
+		view = depthview.internal[],
+		depthClearValue = args[:depthClearValue],
+		depthLoadOp = args[:depthLoadOp],
+		depthStoreOp = args[:depthStoreOp],
+		stencilLoadOp = get(args, :stencilLoadOp, WGPULoadOp_Clear),
+		stencilStoreOp = get(args, :stencilStoreOp, WGPUStoreOp_Store),
 	)
-	return RenderPassDescriptor(a, colorAttachmentsIn, label, depthStencilAttachment, renderArgs)
+	return GPUDepthStencilAttachment(a, (args, depthview) .|> Ref)
+end
+
+
+function createEntry(::Type{GPUDepthStencilAttachments}; args...)
+	attachments = WGPURenderPassDepthStencilAttachment[]
+	attachmentObjs = GPUDepthStencilAttachment[]
+	for attachment in get(args, :attachments, [])
+		obj = createEntry(attachment.first; attachment.second...)
+		push!(attachmentObjs, obj)
+		push!(attachments, obj.internal[])
+	end
+	return GPUDepthStencilAttachments(attachments |> Ref, (attachments, attachmentObjs) .|> Ref)
 end
 
 mutable struct GPUCommandBuffer
@@ -1196,9 +1213,11 @@ mutable struct GPUCommandBuffer
 	device
 end
 
+
 function createCommandBuffer()
 	
 end
+
 
 mutable struct GPUCommandEncoder
 	label
@@ -1207,12 +1226,14 @@ mutable struct GPUCommandEncoder
 	desc
 end
 
+
 mutable struct GPUComputePassEncoder
 	label
 	internal
 	cmdEncoder
 	desc
 end
+
 
 function createCommandEncoder(gpuDevice, label)
 	labelRef = label |> Ref
@@ -1242,12 +1263,25 @@ function beginComputePass(cmdEncoder::GPUCommandEncoder;
 end
 
 function beginRenderPass(cmdEncoder::GPUCommandEncoder, renderPipelinePairs; label = " BEGIN RENDER PASS ")
-	desc = createRenderPassFromPairs(renderPipelinePairs; label = label)
+	renderArgs = Dict()
+	for config in renderPipelinePairs[]
+		renderArgs[config.first] = createEntry(config.first; config.second...)
+	end
+	# Both color and depth attachments requires pointer
+	colorAttachmentsIn = renderArgs[GPUColorAttachments]
+	depthStencilAttachmentIn = renderArgs[GPUDepthStencilAttachments]
+	desc = GC.@preserve label partialInit(
+		WGPURenderPassDescriptor;
+		label = pointer(label),
+		colorAttachments = let ca = colorAttachmentsIn; length(ca.internal[]) > 0  ? pointer(ca.internal[]) : C_NULL end,
+		colorAttachmentCount = length(colorAttachmentsIn.internal[]),
+		depthStencilAttachment = let da = depthStencilAttachmentIn; length(da.internal[]) > 0 ? pointer(da.internal[]) : C_NULL end,
+	) |> pointer_from_objref
 	renderPass = wgpuCommandEncoderBeginRenderPass(
 		cmdEncoder.internal[],
-		desc.internal |> pointer_from_objref
+		desc,
 	) |> WGPURef
-	GPURenderPassEncoder(label, renderPass, renderPipelinePairs, cmdEncoder, desc)
+	GPURenderPassEncoder(label, renderPass, renderPipelinePairs, cmdEncoder, desc, renderArgs |> Ref)
 end
 
 function copyBufferToBuffer(
