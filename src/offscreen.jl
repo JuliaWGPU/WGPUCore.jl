@@ -34,7 +34,7 @@ function defaultInit(::Type{OffscreenCanvas})
 	title = "Offscreen Window"
 	canvas = OffscreenCanvas(
 		title,
-		(400, 500),
+		(500, 500),
 		nothing,
 		false,
 		nothing,

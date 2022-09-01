@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.0-rc3"
+julia_version = "1.8.0"
 manifest_format = "2.0"
 project_hash = "70c3786b749eb43507201dbeb1f8c268ab2355a9"
 
@@ -26,9 +26,9 @@ version = "0.4.2"
 
 [[deps.CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "6d4fa04343a7fc9f9cb9cff9558929f3d2752717"
+git-tree-sha1 = "1833bda4a027f4b2a1c984baddcf755d77266818"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "1.0.9"
+version = "1.1.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -55,9 +55,9 @@ version = "1.6.0"
 
 [[deps.Eyeball]]
 deps = ["AbstractTrees", "FoldingTrees", "InteractiveUtils", "REPL", "Statistics", "TerminalPager"]
-git-tree-sha1 = "72c76753718a9e18adabe02676076c67f7b37e0c"
+git-tree-sha1 = "ee7e5c0df3eac9796f5aac138bd91e37ecd2d1bf"
 uuid = "ce36242b-ad83-4f84-8519-47cd8aeefd60"
-version = "0.4.5"
+version = "0.4.6"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -76,9 +76,9 @@ version = "3.4.1"
 
 [[deps.GLFW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pkg", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
-git-tree-sha1 = "51d2dfe8e590fbd74e7a842cf6d13d8a2f45dc01"
+git-tree-sha1 = "d972031d28c8c8d9d7b41a536ad7bb0c2579caca"
 uuid = "0656b61e-2033-5cc2-a64a-77c0f6c09b89"
-version = "3.3.6+0"
+version = "3.3.8+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -98,9 +98,9 @@ version = "1.4.1"
 
 [[deps.JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "52617c41d2761cc05ed81fe779804d3b7f14fff7"
+git-tree-sha1 = "0f960b1404abb0b244c1ece579a0ec78d056a5d1"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.9.13"
+version = "0.9.15"
 
 [[deps.Lazy]]
 deps = ["MacroTools"]
@@ -116,7 +116,7 @@ version = "0.6.3"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.83.1+1"
+version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -259,9 +259,9 @@ version = "1.3.0"
 
 [[deps.Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "c73149ff75d4efb19b6d77411d293ae8fb55c58e"
+git-tree-sha1 = "dad726963ecea2d8a81e26286f625aee09a91b7c"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.3.4"
+version = "3.4.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -281,6 +281,11 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
+[[deps.StringManipulation]]
+git-tree-sha1 = "46da2434b41f41ac3594ee9816ce5541c6096123"
+uuid = "892a3eda-7b42-436c-8928-eab12a02cf0e"
+version = "0.3.0"
+
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
@@ -292,10 +297,10 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
 [[deps.TerminalPager]]
-deps = ["Crayons", "REPL"]
-git-tree-sha1 = "ab48808164f5b1392e5384d64cedb322c9cf1050"
+deps = ["Crayons", "REPL", "StringManipulation"]
+git-tree-sha1 = "a670e1396871c49b9ca371092910600e4ed0b7c4"
 uuid = "0c614874-6106-40ed-a7c2-2f1cd0bff883"
-version = "0.2.2"
+version = "0.3.1"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -322,7 +327,7 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 deps = ["CEnum", "Libdl", "Reexport", "Revise"]
 path = "../WGPU_jll.jl"
 uuid = "a34101cb-cf34-4534-a843-44c27476dfe4"
-version = "0.1.0"
+version = "0.1.1"
 
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "Zlib_jll"]
@@ -433,7 +438,7 @@ version = "5.1.1+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.47.0+0"
+version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]

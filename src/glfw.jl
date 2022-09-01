@@ -1,12 +1,31 @@
 abstract type GLFWCanvas end
 
 using ObjectiveC
+
 @classes NSWindow
 @classes CAMetalLayer
+
+using Eyeball
 
 using GLFW
 using ObjectiveC
 using ObjectiveC.Cocoa: wantLayer, setMetalLayer
+
+mutable struct MouseState
+	leftButton
+	rightButton
+	middleButton
+	scroll
+end
+
+defaultInit(::Type{MouseState}) = begin
+	MouseState(
+		false,
+		false,
+		false,
+		false
+	)
+end
 
 mutable struct GLFWMacCanvas <: GLFWCanvas
 	title::String
@@ -24,6 +43,7 @@ mutable struct GLFWMacCanvas <: GLFWCanvas
 	device
 	context
 	drawFunc
+	mouseState
 end
 
 function attachDrawFunction(canvas::GLFWCanvas, f)
@@ -39,7 +59,7 @@ function defaultInit(::Type{GLFWMacCanvas})
 	title = "GLFW WGPU Window"
 	GLFW.Init()
 	GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
-	windowRef[] = window = GLFW.CreateWindow(1280, 960, title)
+	windowRef[] = window = GLFW.CreateWindow(500, 500, title)
 	nswindow = GLFW.GetCocoaWindow(windowRef[]) |> Ref
 	metalLayer = (@objc [CAMetalLayer new] ) |> Ref
 	wantLayer(nswindow[])
@@ -65,7 +85,7 @@ function defaultInit(::Type{GLFWMacCanvas})
 	title = "GLFW Window"
 	canvas = GLFWMacCanvas(
 		title,
-		(400, 500),
+		(500, 500),
 		windowRef,
 		surfaceRef,
 		surfaceDescriptorRef,
@@ -78,7 +98,8 @@ function defaultInit(::Type{GLFWMacCanvas})
 		false,
 		backend.device,
 		nothing,
-		nothing
+		nothing,
+		defaultInit(MouseState)
 	)
 	
 	setJoystickCallback(canvas)
@@ -98,6 +119,7 @@ function defaultInit(::Type{GLFWMacCanvas})
 
 	return canvas
 end
+
 function setJoystickCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
 		callback = (joystick, event) -> println("$joystick $event")
@@ -193,12 +215,14 @@ function setCharModsCallback(canvas::GLFWCanvas, f=nothing)
 	else
 		callback = f
 	end
-	GLFW.SetCharModsCallback(canvas.windowRef[], callback)	
+	GLFW.SetCharModsCallback(canvas.windowRef[], callback)
 end
 
 function setMouseButtonCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
-		callback = (_, button, action, mods) -> println("$button : $action : $mods")
+		callback = (win, button, action, mods) -> begin
+			println("$button : $action : $mods")
+		end
 	else
 		callback = f
 	end
@@ -259,6 +283,7 @@ function getContext(gpuCanvas::GLFWMacCanvas)
 			surfaceId = gpuCanvas.surfaceRef[],
 			internal = nothing,
 			device = gpuCanvas.device,
+			physicalSize=(500, 500),
 			compositingAlphaMode=nothing
 		)
 	else
@@ -348,7 +373,7 @@ function getCurrentTexture(cntxt::GPUCanvasContext)
 		id = wgpuSwapChainGetCurrentTextureView(cntxt.internal[]) |> Ref
 		size = (cntxt.surfaceSize..., 1)
 		cntxt.currentTexture = GPUTextureView(
-			"swap chain", id, cntxt.device, nothing, size
+			"swap chain", id, cntxt.device, nothing, size, nothing |> Ref
 		)
 	end
 	return cntxt.currentTexture

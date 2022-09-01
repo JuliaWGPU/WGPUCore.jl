@@ -74,7 +74,7 @@ function getContext(gpuCanvas::MacCanvas)
 			internal = nothing,
 			device = gpuCanvas.device,
 			compositingAlphaMode=nothing,
-			physicalSize=(500, 500),
+			# physicalSize=(500, 500),
 			pixelRatio = (1, 1),
 			usage = getEnum(WGPUTextureUsage, "RenderAttachment")
 		)
