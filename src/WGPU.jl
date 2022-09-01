@@ -1700,7 +1700,7 @@ function writeTexture(queue::GPUQueue; args...)
 end
 
 function readTexture()
-	
+	# TODO
 end
 
 function readBuffer(gpuDevice, buffer, bufferOffset, size)
@@ -1720,8 +1720,15 @@ function readBuffer(gpuDevice, buffer, bufferOffset, size)
 	return data
 end
 
-function writeBuffer(queue::GPUQueue, buffer, bufferOffset, data, dataOffset, size)
-	
+function writeBuffer(queue::GPUQueue, buffer, data; dataOffset=0, size=nothing)
+	# TODO checks
+	wgpuQueueWriteBuffer(
+		queue.internal[],
+		buffer.internal[],
+		0,
+		data,
+		sizeof(data)
+	)
 end
 
 forceOffscreen = false
