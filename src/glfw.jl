@@ -52,14 +52,15 @@ function attachDrawFunction(canvas::GLFWCanvas, f)
 	end
 end
 
-function defaultInit(::Type{GLFWMacCanvas})
+
+function defaultCanvas(::Type{GLFWMacCanvas}; size=(500, 500))
 	windowRef = Ref{GLFW.Window}()
 	surfaceRef = Ref{WGPUSurface}()
 	surfaceDescriptorRef = Ref{WGPUSurfaceDescriptor}()
 	title = "GLFW WGPU Window"
 	GLFW.Init()
 	GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
-	windowRef[] = window = GLFW.CreateWindow(500, 500, title)
+	windowRef[] = window = GLFW.CreateWindow(size..., title)
 	nswindow = GLFW.GetCocoaWindow(windowRef[]) |> Ref
 	metalLayer = (@objc [CAMetalLayer new] ) |> Ref
 	wantLayer(nswindow[])
@@ -85,7 +86,7 @@ function defaultInit(::Type{GLFWMacCanvas})
 	title = "GLFW Window"
 	canvas = GLFWMacCanvas(
 		title,
-		(500, 500),
+		size,
 		windowRef,
 		surfaceRef,
 		surfaceDescriptorRef,
@@ -101,7 +102,7 @@ function defaultInit(::Type{GLFWMacCanvas})
 		nothing,
 		defaultInit(MouseState)
 	)
-	
+	getContext(canvas)
 	setJoystickCallback(canvas)
 	setMonitorCallback(canvas)
 	setWindowCloseCallback(canvas)
@@ -158,7 +159,11 @@ end
 
 function setWindowSizeCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
-		callback = (_, w, h) -> println("window size : $w $h")
+		callback = (_, w, h) -> begin
+			println("window size : $w $h")
+			canvas.size = (w, h)
+			determineSize(canvas.context[])
+		end
 	else
 		callback = f
 	end
@@ -276,16 +281,17 @@ end
 
 function getContext(gpuCanvas::GLFWMacCanvas)
 	if gpuCanvas.context == nothing
-		return partialInit(
+		context =  partialInit(
 			GPUCanvasContext;
 			canvasRef = Ref(gpuCanvas),
 			surfaceSize = (-1, -1),
 			surfaceId = gpuCanvas.surfaceRef[],
 			internal = nothing,
 			device = gpuCanvas.device,
-			physicalSize=(500, 500),
+			physicalSize=gpuCanvas.size,
 			compositingAlphaMode=nothing
 		)
+		gpuCanvas.context = context
 	else
 		return gpuCanvas.context
 	end
