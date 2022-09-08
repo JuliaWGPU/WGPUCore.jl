@@ -1,7 +1,7 @@
 ## Load WGPU
 using WGPU
 using GLFW
-
+using Debugger
 using WGPU_jll
 using Images
 
@@ -36,6 +36,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
+@enter canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
 canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
