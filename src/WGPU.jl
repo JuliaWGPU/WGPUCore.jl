@@ -449,6 +449,7 @@ function createView(gpuTexture::GPUTexture; dimension=nothing)
 			dimension = T(value)
 		end
 	end
+	texSize = gpuTexture.texInfo["size"]
 	viewDescriptor = partialInit(
 		WGPUTextureViewDescriptor;
 		label = pointer(gpuTexture.label),
@@ -458,7 +459,7 @@ function createView(gpuTexture::GPUTexture; dimension=nothing)
 		baseMipLevel = 0, # TODO
 		mipLevelCount = 1, # TODO
 		baseArrayLayer = 0, # TODO
-		arrayLayerCount = 1,  # TODO
+		arrayLayerCount = last(texSize),  # TODO
 		texture = gpuTexture |> Ref
 	) |> Ref
 	view = GC.@preserve gpuTextureInternal wgpuTextureCreateView(gpuTexture.internal[], viewDescriptor) |> Ref
@@ -1533,7 +1534,7 @@ function setViewport(renderPass::GPURenderPassEncoder,
 					x, y, 
 					width, height, 
 					minDepth, maxDepth)
-	wgpuRenderPassEncoderSetViewPort(
+	wgpuRenderPassEncoderSetViewport(
 		renderPass.internal[],
 		float(x),
 		float(y),
