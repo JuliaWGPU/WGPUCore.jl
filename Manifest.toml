@@ -1,8 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.0"
+julia_version = "1.8.1"
 manifest_format = "2.0"
-project_hash = "70c3786b749eb43507201dbeb1f8c268ab2355a9"
+project_hash = "13685dbc4688c645a616c33b8cd5db60c0d2a15a"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "03e0550477d86222521d254b741d470ba17ea0b5"
@@ -64,9 +64,9 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FoldingTrees]]
 deps = ["AbstractTrees", "REPL"]
-git-tree-sha1 = "db17016023fd7d6a15267ac09ec420f952738b17"
+git-tree-sha1 = "d94efd85f2fe192cdf664aa8b7c431592faed59e"
 uuid = "1eca21be-9b9b-4ed8-839a-6d8ae26b1781"
-version = "1.2.0"
+version = "1.2.1"
 
 [[deps.GLFW]]
 deps = ["GLFW_jll"]
@@ -101,12 +101,6 @@ deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
 git-tree-sha1 = "0f960b1404abb0b244c1ece579a0ec78d056a5d1"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
 version = "0.9.15"
-
-[[deps.Lazy]]
-deps = ["MacroTools"]
-git-tree-sha1 = "1370f8202dac30758f3c345f9909b97f53d87d3f"
-uuid = "50d2b5c4-7a5e-59d5-8109-a42b560f39c0"
-version = "0.15.1"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -167,12 +161,6 @@ git-tree-sha1 = "dedbebe234e06e1ddad435f5c6f4b85cd8ce55f7"
 uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
 version = "2.2.2"
 
-[[deps.MacroTools]]
-deps = ["Markdown", "Random"]
-git-tree-sha1 = "3d3e902b31198a27340d0bf00d6ac452866021cf"
-uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.9"
-
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
@@ -184,9 +172,9 @@ version = "2.28.0+0"
 
 [[deps.ModernGL]]
 deps = ["Libdl"]
-git-tree-sha1 = "344f8896e55541e30d5ccffcbf747c98ad57ca47"
+git-tree-sha1 = "713fd24142921db94e5f7d7961f9ee033c6573d5"
 uuid = "66fc600b-dfda-50eb-8b99-91cfa97b1301"
-version = "1.1.4"
+version = "1.1.5"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
@@ -195,12 +183,6 @@ version = "2022.2.1"
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.2.0"
-
-[[deps.ObjectiveC]]
-deps = ["Lazy", "Libdl", "MacroTools", "Underscores"]
-path = "/Users/arhik/May2022/ObjectiveC.jl/ObjectiveC/"
-uuid = "6c07fbdc-5bdc-4d02-8a62-964bb6f20465"
-version = "0.1.0"
 
 [[deps.OhMyREPL]]
 deps = ["Crayons", "JLFzf", "Markdown", "Pkg", "Printf", "REPL", "Tokenize"]
@@ -315,16 +297,11 @@ version = "0.5.24"
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
-[[deps.Underscores]]
-git-tree-sha1 = "6e6de5a5e7116dcff8effc99f6f55230c61f6862"
-uuid = "d9a01c3f-67ce-4d8c-9b55-35f6e4050bb1"
-version = "3.0.0"
-
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[deps.WGPU_jll]]
-deps = ["CEnum", "Libdl", "Reexport", "Revise"]
+deps = ["CEnum", "Libdl", "Pkg", "Reexport", "Revise"]
 path = "../WGPU_jll.jl"
 uuid = "a34101cb-cf34-4534-a843-44c27476dfe4"
 version = "0.1.1"

@@ -1,15 +1,34 @@
 abstract type GLFWCanvas end
 
-using ObjectiveC
-
-@classes NSWindow
-@classes CAMetalLayer
+# should remove this objectiveC dependency
 
 using Eyeball
 
 using GLFW
-using ObjectiveC
-using ObjectiveC.Cocoa: wantLayer, setMetalLayer
+
+using WGPU
+
+using Pkg.Artifacts
+
+artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
+
+wgpu_hash = artifact_hash("WGPU", artifact_toml)
+
+wgpulibpath = artifact_path(wgpu_hash)
+
+const libcocoa = joinpath(wgpulibpath, "cocoa")
+
+function getMetalLayer()
+	ccall((:getMetalLayer, libcocoa), Ptr{UInt8}, (), )
+end
+
+function wantLayer(nswindow)
+	ccall((:wantLayer, libcocoa), Cvoid, (Ptr{Nothing},), nswindow)
+end
+
+function setMetalLayer(nswindow, metalLayer)
+	ccall((:setMetalLayer, libcocoa), Cvoid, (Ptr{Nothing}, Ptr{Nothing}), nswindow, metalLayer)
+end
 
 mutable struct MouseState
 	leftButton
@@ -62,7 +81,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size=(500, 500))
 	GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
 	windowRef[] = window = GLFW.CreateWindow(size..., title)
 	nswindow = GLFW.GetCocoaWindow(windowRef[]) |> Ref
-	metalLayer = (@objc [CAMetalLayer new] ) |> Ref
+	metalLayer = getMetalLayer() |> Ref
 	wantLayer(nswindow[])
 	setMetalLayer(nswindow[], metalLayer[])
 	metalSurfaceRef = partialInit(
@@ -72,7 +91,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size=(500, 500))
 				            next = C_NULL,
 				            sType = WGPUSType_SurfaceDescriptorFromMetalLayer
 				        ),
-				        layer = metalLayer[].ptr
+				        layer = metalLayer[]
 				    ) |> Ref
 	surfaceDescriptorRef[] = partialInit(
 				WGPUSurfaceDescriptor;

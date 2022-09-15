@@ -1,0 +1,18 @@
+[[WGPU]]
+arch = "arm64"
+git-tree-sha1 = "9114b7b3167821180b099b35ee6ad0c0ca0feb76"
+os = "macos"
+
+	[[WGPU.download]]
+	sha256 = "89191d50c0972a2cdb856b772d743dcd642dfef923f2c02e321d32a5333aa542"
+	url = "https://github.com/dvijaha/WGPU.jl/releases/download/v.0.1.1/WGPU.v.0.1.1.arm64-macos.tar.gz"
+
+[[WGPU]]
+arch = "x86_64"
+git-tree-sha1 = "0da4d5d51962f4f02ab3055612715be3b28235f7"
+os = "macos"
+
+	[[WGPU.download]]
+	sha256 = "5bc27d5115be22cb7cba3406c4e9769b03b5d53e2488ea2c4dfc021b094d29af"
+	url = "https://github.com/dvijaha/WGPU.jl/releases/download/v.0.1.1/WGPU.v.0.1.1.x86_64-macos.tar.gz"
+
