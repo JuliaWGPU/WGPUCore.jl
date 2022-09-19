@@ -1,7 +1,7 @@
 ## Load WGPU
 using WGPU
 using WGPU: defaultInit, partialInit, pointerRef
-using WGPU_jll
+using WGPUNative
 
 ## Constants
 numbers = UInt32[1,2,3,4]

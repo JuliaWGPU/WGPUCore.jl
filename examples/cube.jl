@@ -4,7 +4,7 @@ using WGPU
 using GeometryBasics
 using LinearAlgebra
 using Rotations
-using WGPU_jll
+using WGPUNative
 using GLFW
 using StaticArrays
 

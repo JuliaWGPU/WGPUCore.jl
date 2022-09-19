@@ -1,5 +1,5 @@
 ## Load WGPU
-using WGPU_jll
+using WGPUNative
 using CEnum
 using CEnum:Cenum
 ## default inits for non primitive types

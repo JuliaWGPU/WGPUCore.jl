@@ -13,7 +13,7 @@ OhMyREPL = "5fb14364-9ced-5910-84b2-373655c76a03"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-WGPU_jll = "a34101cb-cf34-4534-a843-44c27476dfe4"
+WGPUNative = "c14bfd16-04f9-4c2f-a915-b355584b5509"
 
 [compat]
 julia = ">= 1.8"

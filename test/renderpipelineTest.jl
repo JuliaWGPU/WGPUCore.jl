@@ -1,7 +1,7 @@
 ## Load WGPU
 using WGPU
 using Test
-using WGPU_jll
+using WGPUNative
 using GLFW
 
 WGPU.setDebugMode(false)

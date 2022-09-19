@@ -2,7 +2,7 @@
 using WGPU
 using Test
 
-using WGPU_jll
+using WGPUNative
 
 flatten(x) = reshape(x, (:,))
 

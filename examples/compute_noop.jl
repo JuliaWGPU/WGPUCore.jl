@@ -1,7 +1,7 @@
 ## Load WGPU
 using WGPU
 
-using WGPU_jll
+using WGPUNative
 
 WGPU.SetLogLevel(WGPULogLevel_Debug)
 

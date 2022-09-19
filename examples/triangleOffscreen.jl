@@ -2,7 +2,7 @@
 using WGPU
 using GLFW
 
-using WGPU_jll
+using WGPUNative
 using Images
 
 WGPU.SetLogLevel(WGPULogLevel_Off)
