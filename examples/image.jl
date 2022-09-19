@@ -1,5 +1,4 @@
 using OhMyREPL
-using Eyeball
 using WGPU
 using GeometryBasics
 using LinearAlgebra
