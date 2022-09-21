@@ -1,7 +1,6 @@
 ## Load WGPU
 using WGPU
 using GLFW
-using Debugger
 using WGPUNative
 using Images
 
@@ -36,29 +35,17 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-@enter canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
+canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
-# cBindingLayoutsList = Ref(WGPU.makeEntryList(bindingLayouts))
-# cBindingsList = Ref(WGPU.makeBindGroupEntryList(bindings))
-# bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-# bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
-# 
-# if bindGroupLayout.internal[] == C_NULL
-	# bindGroupLayouts = []
-# else
-	# bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
-# end
 
 
 (bindGroupLayouts, bindGroup) = WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-# swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
 swapChainFormat = WGPU.getPreferredFormat(canvas)
 @info swapChainFormat
 presentContext = WGPU.getContext(canvas)
@@ -105,8 +92,6 @@ renderpipelineOptions = [
 	]
 ]
 
-# renderPipelineLabel = "RENDER PIPE LABEL "
-
 renderPipeline =  WGPU.createRenderPipeline(
 	gpuDevice, pipelineLayout, 
 	renderpipelineOptions; 
@@ -122,15 +107,6 @@ WGPU.attachDrawFunction(canvas, drawFunction)
 
 try
 	while !GLFW.WindowShouldClose(canvas.windowRef[])
-		# bufferDims = WGPU.BufferDimensions(ctxtSize...)
-		# bufferSize = bufferDims.padded_bytes_per_row*bufferDims.height
-		# outputBuffer = WGPU.createBuffer(
-			# "OUTPUT BUFFER",
-			# gpuDevice,
-			# bufferSize,
-			# ["MapRead", "CopyDst", "CopySrc"],
-			# false
-		# )
 		nextTexture = WGPU.getCurrentTexture(presentContext[]) |> Ref
 		cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
 		renderPassOptions = [
@@ -145,42 +121,14 @@ try
 					],
 				]
 			],
-		]
+			WGPU.GPUDepthStencilAttachments => []
+		] |> Ref
 		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label= "Begin Render Pass")
 		WGPU.setPipeline(renderPass, renderPipeline)
 		WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex= 0, firstInstance=0)
 		WGPU.endEncoder(renderPass)
-		# WGPU.copyTextureToBuffer(
-			# cmdEncoder,
-			# [
-				# :texture => nextTexture[],
-				# :mipLevel => 0,
-				# :origin => [
-					# :x => 0,
-					# :y => 0,
-					# :z => 0
-				# ] |> Dict
-			# ] |> Dict,
-			# [
-				# :buffer => outputBuffer,
-				# :layout => [
-					# :offset => 0,
-					# :bytesPerRow => bufferDims.padded_bytes_per_row,
-					# :rowsPerImage => 0
-				# ] |> Dict
-			# ] |> Dict,
-			# [
-				# :width => bufferDims.width,
-				# :height => bufferDims.height,
-				# :depthOrArrayLayers => 1
-			# ] |> Dict
-		# )
 		WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder),])
 		WGPU.present(presentContext[])
-		# data = WGPU.readBuffer(gpuDevice, outputBuffer, 0,  [<0;61;23M] |> Int)
-		# datareshaped = reshape(data, (4, (ctxtSize |>reverse)...) .|> Int)
-		# img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, ctxtSize)
-		# save("triangle.png", img |> adjoint)
 		GLFW.PollEvents()
 	end
 finally

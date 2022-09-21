@@ -1,5 +1,4 @@
 using OhMyREPL
-using Eyeball
 using WGPU
 using GeometryBasics
 using LinearAlgebra
@@ -51,7 +50,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas)
+canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas)
 gpuDevice = WGPU.getDefaultDevice()
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
@@ -318,9 +317,10 @@ try
 					],
 				]
 			],
+			WGPU.GPUDepthStencilAttachments => []
 		]
 		
-		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label= "BEGIN RENDER PASS")
+		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions |> Ref; label= "BEGIN RENDER PASS")
 		
 		WGPU.setPipeline(renderPass, renderPipeline)
 		WGPU.setIndexBuffer(renderPass, indexBuffer, "Uint32")

@@ -57,7 +57,7 @@ for i in 1:n
 	data[i] = i
 end
 
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
+canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice()
 
 shadercode = WGPU.loadWGSL(shaderSource) |> first
@@ -113,12 +113,6 @@ bindings = [
 	]
 ]
 
-# cBindingLayoutsList = Ref(WGPU.makeEntryList(bindingLayouts))
-# cBindingsList = Ref(WGPU.makeBindGroupEntryList(bindings))
-# 
-# bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-# bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
-# bindGroupLayouts = Ref(map((x)->x.internal[], [bindGroupLayout,]))
 
 (bindGroupLayouts, bindGroup) = WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)

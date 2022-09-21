@@ -36,7 +36,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPU.defaultInit(WGPU.OffscreenCanvas);
+canvas = WGPU.defaultCanvas(WGPU.OffscreenCanvas);
 gpuDevice = WGPU.getDefaultDevice();
 shadercode = WGPU.loadWGSL(shaderSource) |> first;
 cshader = Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
@@ -133,7 +133,8 @@ try
 					],
 				]
 			],
-		]
+			WGPU.DepthStencilAttachments => []
+		] |> Ref
 		renderPass = WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label= "Begin Render Pass")
 		WGPU.setPipeline(renderPass, renderPipeline)
 		WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex= 0, firstInstance=0)
