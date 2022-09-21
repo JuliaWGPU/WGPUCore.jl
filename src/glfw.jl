@@ -2,8 +2,6 @@ abstract type GLFWCanvas end
 
 # should remove this objectiveC dependency
 
-using Eyeball
-
 using GLFW
 
 using WGPU
