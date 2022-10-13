@@ -1,10 +1,10 @@
 ## Load WGPU
-using WGPU
+using WGPUCore
 using GLFW
 using WGPUNative
 using Images
 
-WGPU.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Off)
 
 shaderSource = Vector{UInt8}(
     """
@@ -35,43 +35,43 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas);
-gpuDevice = WGPU.getDefaultDevice();
-shadercode = WGPU.loadWGSL(shaderSource) |> first;
+canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
+gpuDevice = WGPUCore.getDefaultDevice();
+shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
 cshader =
-    Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
 
 
 (bindGroupLayouts, bindGroup) =
-    WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-swapChainFormat = WGPU.getPreferredFormat(canvas)
+    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 @info swapChainFormat
-presentContext = WGPU.getContext(canvas)
-ctxtSize = WGPU.determineSize(presentContext[]) .|> Int
+presentContext = WGPUCore.getContext(canvas)
+ctxtSize = WGPUCore.determineSize(presentContext[]) .|> Int
 
-WGPU.config(presentContext, device = gpuDevice, format = swapChainFormat)
+WGPUCore.config(presentContext, device = gpuDevice, format = swapChainFormat)
 
 renderpipelineOptions = [
-    WGPU.GPUVertexState =>
+    WGPUCore.GPUVertexState =>
         [:_module => cshader[], :entryPoint => "vs_main", :buffers => []],
-    WGPU.GPUPrimitiveState => [
+    WGPUCore.GPUPrimitiveState => [
         :topology => "TriangleList",
         :frontFace => "CCW",
         :cullMode => "None",
         :stripIndexFormat => "Undefined",
     ],
-    WGPU.GPUDepthStencilState => [],
-    WGPU.GPUMultiSampleState =>
+    WGPUCore.GPUDepthStencilState => [],
+    WGPUCore.GPUMultiSampleState =>
         [:count => 1, :mask => typemax(UInt32), :alphaToCoverageEnabled => false],
-    WGPU.GPUFragmentState => [
+    WGPUCore.GPUFragmentState => [
         :_module => cshader[],
         :entryPoint => "fs_main",
         :targets => [
-            WGPU.GPUColorTargetState => [
+            WGPUCore.GPUColorTargetState => [
                 :format => swapChainFormat,
                 :color => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
                 :alpha => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
@@ -80,7 +80,7 @@ renderpipelineOptions = [
     ],
 ]
 
-renderPipeline = WGPU.createRenderPipeline(
+renderPipeline = WGPUCore.createRenderPipeline(
     gpuDevice,
     pipelineLayout,
     renderpipelineOptions;
@@ -88,21 +88,21 @@ renderPipeline = WGPU.createRenderPipeline(
 )
 
 function drawFunction()
-    WGPU.draw(renderPass, 3, 1, 0, 0)
-    WGPU.end(renderPass)
+    WGPUCore.draw(renderPass, 3, 1, 0, 0)
+    WGPUCore.end(renderPass)
 end
 
-WGPU.attachDrawFunction(canvas, drawFunction)
+WGPUCore.attachDrawFunction(canvas, drawFunction)
 
 try
     while !GLFW.WindowShouldClose(canvas.windowRef[])
-        nextTexture = WGPU.getCurrentTexture(presentContext[]) |> Ref
-        cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
+        nextTexture = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
         renderPassOptions =
             [
-                WGPU.GPUColorAttachments => [
+                WGPUCore.GPUColorAttachments => [
                     :attachments => [
-                        WGPU.GPUColorAttachment => [
+                        WGPUCore.GPUColorAttachment => [
                             :view => nextTexture[],
                             :resolveTarget => C_NULL,
                             :clearValue => (0.0, 0.0, 0.0, 1.0),
@@ -111,17 +111,17 @@ try
                         ],
                     ],
                 ],
-                WGPU.GPUDepthStencilAttachments => [],
+                WGPUCore.GPUDepthStencilAttachments => [],
             ] |> Ref
         renderPass =
-            WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label = "Begin Render Pass")
-        WGPU.setPipeline(renderPass, renderPipeline)
-        WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex = 0, firstInstance = 0)
-        WGPU.endEncoder(renderPass)
-        WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder)])
-        WGPU.present(presentContext[])
+            WGPUCore.beginRenderPass(cmdEncoder, renderPassOptions; label = "Begin Render Pass")
+        WGPUCore.setPipeline(renderPass, renderPipeline)
+        WGPUCore.draw(renderPass, 3; instanceCount = 1, firstVertex = 0, firstInstance = 0)
+        WGPUCore.endEncoder(renderPass)
+        WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
+        WGPUCore.present(presentContext[])
         GLFW.PollEvents()
     end
 finally
-    WGPU.destroyWindow(canvas)
+    WGPUCore.destroyWindow(canvas)
 end

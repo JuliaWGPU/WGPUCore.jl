@@ -7,7 +7,7 @@ vertexStateOptions = [
     :_module => C_NULL,
     :entryPoint => "vs_main",
     :buffers => [
-        WGPU.GPUVertexBufferLayout => [
+        WGPUCore.GPUVertexBufferLayout => [
             :arrayStride => 4 * 6,
             :stepMode => "Vertex",
             :attributes => [
@@ -22,27 +22,27 @@ vertexStateOptions = [
     ],
 ]
 
-vertexAttrib1 = WGPU.createEntry(
-    WGPU.GPUVertexAttribute;
+vertexAttrib1 = WGPUCore.createEntry(
+    WGPUCore.GPUVertexAttribute;
     format = "Float32x4",
     offset = 0,
     shaderLocation = 0,
 )
 
-vertexAttrib2 = WGPU.createEntry(
-    WGPU.GPUVertexAttribute;
+vertexAttrib2 = WGPUCore.createEntry(
+    WGPUCore.GPUVertexAttribute;
     format = "Float32x2",
     offset = 16,
     shaderLocation = 1,
 )
 
-vertexState = WGPU.createEntry(WGPU.GPUVertexState; vertexStateOptions...)
+vertexState = WGPUCore.createEntry(WGPUCore.GPUVertexState; vertexStateOptions...)
 
 vsInternal = vertexState.internal
 vs = vsInternal
-bufs = unsafe_wrap(Vector{WGPU.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
+bufs = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
 buf = bufs[1]
-attrs = unsafe_wrap(Vector{WGPU.WGPUVertexAttribute}, buf.attributes, buf.attributeCount)
+attrs = unsafe_wrap(Vector{WGPUCore.WGPUVertexAttribute}, buf.attributes, buf.attributeCount)
 
 attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)

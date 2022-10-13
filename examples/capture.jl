@@ -1,6 +1,6 @@
 ## Load WGPU
-using WGPU
-using WGPU: defaultInit, partialInit, pointerRef
+using WGPUCore
+using WGPUCore: defaultInit, partialInit, pointerRef
 using WGPUNative
 ## Constants
 numbers = UInt32[1, 2, 3, 4]
@@ -52,7 +52,7 @@ adapter = Ref(WGPUAdapter())
 device = Ref(WGPUDevice())
 
 
-adapterOptions = Ref(WGPU.defaultInit(WGPURequestAdapterOptions))
+adapterOptions = Ref(WGPUCore.defaultInit(WGPURequestAdapterOptions))
 
 function request_adapter_callback(
     a::WGPURequestAdapterStatus,

@@ -160,7 +160,7 @@ function createNewTextureMaybe(canvasCntxt::GPUCanvasContextOffline)
         return
     end
     canvasCntxt.surfaceSize = pSize
-    canvasCntxt.currentTexture = WGPU.createTexture(
+    canvasCntxt.currentTexture = WGPUCore.createTexture(
         canvasCntxt.device,
         "textureOffline",
         (pSize..., 1),
@@ -170,7 +170,7 @@ function createNewTextureMaybe(canvasCntxt::GPUCanvasContextOffline)
         canvasCntxt.format,
         canvasCntxt.usage | getEnum(WGPUTextureUsage, "CopySrc"),
     )
-    canvasCntxt.currentTextureView = WGPU.createView(canvasCntxt.currentTexture)
+    canvasCntxt.currentTextureView = WGPUCore.createView(canvasCntxt.currentTexture)
 end
 
 function destroyWindow(canvas::OffscreenCanvas)

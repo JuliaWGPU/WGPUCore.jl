@@ -1,5 +1,5 @@
 ## Load WGPU
-using WGPU
+using WGPUCore
 using Test
 
 using WGPUNative
@@ -37,10 +37,10 @@ vertexData =
         dims = 2,
     ) .|> Float32
 
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas)
-gpuDevice = WGPU.getDefaultDevice()
+canvas = WGPUCore.defaultInit(WGPUCore.WGPUCanvas)
+gpuDevice = WGPUCore.getDefaultDevice()
 
-(vertexBuffer, tmpData) = WGPU.createBufferWithData(
+(vertexBuffer, tmpData) = WGPUCore.createBufferWithData(
     gpuDevice,
     "buffer1",
     vertexData,
@@ -61,7 +61,7 @@ function fill_columns(x::Vector{T}, outSize; fill = nothing) where {T}
 end
 
 dataDown =
-    reinterpret(Float32, WGPU.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData))) |>
+    reinterpret(Float32, WGPUCore.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData))) |>
     collect
 
 dataDown2 = reshape(dataDown, (6, 24))

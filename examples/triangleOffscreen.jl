@@ -1,11 +1,11 @@
 ## Load WGPU
-using WGPU
+using WGPUCore
 using GLFW
 
 using WGPUNative
 using Images
 
-WGPU.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Off)
 
 shaderSource = Vector{UInt8}(
     """
@@ -36,44 +36,44 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPU.defaultCanvas(WGPU.OffscreenCanvas);
-gpuDevice = WGPU.getDefaultDevice();
-shadercode = WGPU.loadWGSL(shaderSource) |> first;
+canvas = WGPUCore.defaultCanvas(WGPUCore.OffscreenCanvas);
+gpuDevice = WGPUCore.getDefaultDevice();
+shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
 cshader =
-    Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
 
 (bindGroupLayouts, bindGroup) =
-    WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 
-pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 # swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
-swapChainFormat = WGPU.getPreferredFormat(canvas)
+swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 @info swapChainFormat
-presentContext = WGPU.getContext(canvas)
-ctxtSize = WGPU.determineSize(presentContext[]) .|> Int
+presentContext = WGPUCore.getContext(canvas)
+ctxtSize = WGPUCore.determineSize(presentContext[]) .|> Int
 
-WGPU.config(presentContext, device = gpuDevice, format = swapChainFormat)
+WGPUCore.config(presentContext, device = gpuDevice, format = swapChainFormat)
 
 renderpipelineOptions = [
-    WGPU.GPUVertexState =>
+    WGPUCore.GPUVertexState =>
         [:_module => cshader[], :entryPoint => "vs_main", :buffers => []],
-    WGPU.GPUPrimitiveState => [
+    WGPUCore.GPUPrimitiveState => [
         :topology => "TriangleList",
         :frontFace => "CCW",
         :cullMode => "None",
         :stripIndexFormat => "Undefined",
     ],
-    WGPU.GPUDepthStencilState => [],
-    WGPU.GPUMultiSampleState =>
+    WGPUCore.GPUDepthStencilState => [],
+    WGPUCore.GPUMultiSampleState =>
         [:count => 1, :mask => typemax(UInt32), :alphaToCoverageEnabled => false],
-    WGPU.GPUFragmentState => [
+    WGPUCore.GPUFragmentState => [
         :_module => cshader[],
         :entryPoint => "fs_main",
         :targets => [
-            WGPU.GPUColorTargetState => [
+            WGPUCore.GPUColorTargetState => [
                 :format => swapChainFormat,
                 :color => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
                 :alpha => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
@@ -84,7 +84,7 @@ renderpipelineOptions = [
 
 # renderPipelineLabel = "RENDER PIPE LABEL "
 
-renderPipeline = WGPU.createRenderPipeline(
+renderPipeline = WGPUCore.createRenderPipeline(
     gpuDevice,
     pipelineLayout,
     renderpipelineOptions;
@@ -92,29 +92,29 @@ renderPipeline = WGPU.createRenderPipeline(
 )
 
 function drawFunction()
-    WGPU.draw(renderPass, 3, 1, 0, 0)
-    WGPU.end(renderPass)
+    WGPUCore.draw(renderPass, 3, 1, 0, 0)
+    WGPUCore.end(renderPass)
 end
 
-WGPU.attachDrawFunction(canvas, drawFunction)
+WGPUCore.attachDrawFunction(canvas, drawFunction)
 
 try
-    bufferDims = WGPU.BufferDimensions(ctxtSize...)
+    bufferDims = WGPUCore.BufferDimensions(ctxtSize...)
     bufferSize = bufferDims.padded_bytes_per_row * bufferDims.height
-    outputBuffer = WGPU.createBuffer(
+    outputBuffer = WGPUCore.createBuffer(
         "OUTPUT BUFFER",
         gpuDevice,
         bufferSize,
         ["MapRead", "CopyDst", "CopySrc"],
         false,
     )
-    nextTexture = WGPU.getCurrentTexture(presentContext[]) |> Ref
-    cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "cmdEncoder")
+    nextTexture = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+    cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
     renderPassOptions =
         [
-            WGPU.GPUColorAttachments => [
+            WGPUCore.GPUColorAttachments => [
                 :attachments => [
-                    WGPU.GPUColorAttachment => [
+                    WGPUCore.GPUColorAttachment => [
                         :view => nextTexture[],
                         :resolveTarget => C_NULL,
                         :clearValue => (0.0, 0.0, 0.0, 1.0),
@@ -123,14 +123,14 @@ try
                     ],
                 ],
             ],
-            WGPU.DepthStencilAttachments => [],
+            WGPUCore.DepthStencilAttachments => [],
         ] |> Ref
     renderPass =
-        WGPU.beginRenderPass(cmdEncoder, renderPassOptions; label = "Begin Render Pass")
-    WGPU.setPipeline(renderPass, renderPipeline)
-    WGPU.draw(renderPass, 3; instanceCount = 1, firstVertex = 0, firstInstance = 0)
-    WGPU.endEncoder(renderPass)
-    WGPU.copyTextureToBuffer(
+        WGPUCore.beginRenderPass(cmdEncoder, renderPassOptions; label = "Begin Render Pass")
+    WGPUCore.setPipeline(renderPass, renderPipeline)
+    WGPUCore.draw(renderPass, 3; instanceCount = 1, firstVertex = 0, firstInstance = 0)
+    WGPUCore.endEncoder(renderPass)
+    WGPUCore.copyTextureToBuffer(
         cmdEncoder,
         [
             :texture => nextTexture[],
@@ -152,12 +152,12 @@ try
             :depthOrArrayLayers => 1,
         ] |> Dict,
     )
-    WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder)])
-    WGPU.present(presentContext[])
-    data = WGPU.readBuffer(gpuDevice, outputBuffer, 0, bufferSize |> Int)
+    WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
+    WGPUCore.present(presentContext[])
+    data = WGPUCore.readBuffer(gpuDevice, outputBuffer, 0, bufferSize |> Int)
     datareshaped = reshape(data, (4, (ctxtSize |> reverse)...) .|> Int)
     img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, ctxtSize)
     save("triangle.png", img |> adjoint)
 finally
-    WGPU.destroyWindow(canvas)
+    WGPUCore.destroyWindow(canvas)
 end

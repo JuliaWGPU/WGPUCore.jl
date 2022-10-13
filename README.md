@@ -1,6 +1,6 @@
-# WGPU.jl
+# WGPUCore.jl
 
-WGPU based graphics engine
+WGPU Native Core based graphics engine
 
 
 

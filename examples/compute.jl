@@ -1,6 +1,6 @@
 ## Load WGPU
-using WGPU
-using WGPU: defaultInit, partialInit, pointerRef
+using WGPUCore
+using WGPUCore: defaultInit, partialInit, pointerRef
 using WGPUNative
 
 ## Constants
@@ -116,7 +116,7 @@ wgpuAdapterRequestDevice(adapter[], wgpuDeviceDescriptor, requestDeviceCallback,
 
 
 ##
-b = read(pkgdir(WGPU) * "/examples/shader.wgsl")
+b = read(pkgdir(WGPUCore) * "/examples/shader.wgsl")
 wgslDescriptor = WGPUShaderModuleWGSLDescriptor(defaultInit(WGPUChainedStruct), pointer(b))
 
 ## WGSL loading
@@ -133,7 +133,7 @@ function load_wgsl(codeBuffer::Union{IOStream,IOBuffer})
     return (a, wgslDescriptor)
 end
 
-shaderSource = WGPU.loadWGSL(open(pkgdir(WGPU) * "/examples/shader.wgsl")) |> first
+shaderSource = WGPUCore.loadWGSL(open(pkgdir(WGPUCore) * "/examples/shader.wgsl")) |> first
 
 ##
 

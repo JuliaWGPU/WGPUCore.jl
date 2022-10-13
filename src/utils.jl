@@ -23,7 +23,7 @@ function getEnum(::Type{T}, query::String) where {T<:Cenum}
 end
 
 function getEnum(::Type{T}, partials::Vector{String}) where {T<:Cenum}
-    t = WGPU.defaultInit(T)
+    t = WGPUCore.defaultInit(T)
     for partial in partials
         e = getEnum(T, partial)
         if e != nothing

@@ -1,5 +1,5 @@
 
-module WGPU
+module WGPUCore
 
 
 using CEnum
@@ -349,7 +349,7 @@ function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
 end
 
 function getDefaultDevice(; backend = backend)
-    adapter = WGPU.requestAdapter()
+    adapter = WGPUCore.requestAdapter()
     defaultDevice = requestDevice(adapter[])
     return defaultDevice
 end
@@ -1742,7 +1742,7 @@ function readBuffer(gpuDevice, buffer, bufferOffset, size)
     # TODO more implementation is required
     # Took shortcut
     usage = ["CopyDst", "MapRead"]
-    tmpBuffer = WGPU.createBuffer(" READ BUFFER TEMP ", gpuDevice, size, usage, false)
+    tmpBuffer = WGPUCore.createBuffer(" READ BUFFER TEMP ", gpuDevice, size, usage, false)
     commandEncoder = createCommandEncoder(gpuDevice, " READ BUFFER COMMAND ENCODER ")
     copyBufferToBuffer(commandEncoder, buffer, bufferOffset, tmpBuffer, 0, size)
     submit(gpuDevice.queue, [finish(commandEncoder)])
