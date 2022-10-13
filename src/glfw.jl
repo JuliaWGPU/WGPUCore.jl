@@ -16,7 +16,7 @@ function GetX11Display()
 end
 
 
-using WGPU
+using WGPUCore
 
 mutable struct MouseState
     leftButton::Any

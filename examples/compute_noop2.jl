@@ -1,9 +1,9 @@
 ## Load WGPU
-using WGPU
+using WGPUCore
 
 using WGPUNative
 
-WGPU.SetLogLevel(WGPULogLevel_Debug)
+WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}(
     """
@@ -57,47 +57,47 @@ for i = 1:n
     data[i] = i
 end
 
-# canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas);
-gpuDevice = WGPU.getDefaultDevice()
+# canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
+gpuDevice = WGPUCore.getDefaultDevice()
 
-shadercode = WGPU.loadWGSL(shaderSource) |> first
+shadercode = WGPUCore.loadWGSL(shaderSource) |> first
 
 cshader =
-    WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing) |> Ref
+    WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing) |> Ref
 
-(buffer1, _) = WGPU.createBufferWithData(gpuDevice, "buffer1", data, "Storage")
+(buffer1, _) = WGPUCore.createBufferWithData(gpuDevice, "buffer1", data, "Storage")
 
 buffer2 =
-    WGPU.createBuffer("buffer2", gpuDevice, sizeof(data), ["Storage", "CopySrc"], false)
+    WGPUCore.createBuffer("buffer2", gpuDevice, sizeof(data), ["Storage", "CopySrc"], false)
 
 bindingLayouts = [
-    WGPU.WGPUBufferEntry =>
+    WGPUCore.WGPUBufferEntry =>
         [:binding => 0, :visibility => "Compute", :type => "ReadOnlyStorage"],
-    WGPU.WGPUBufferEntry =>
+    WGPUCore.WGPUBufferEntry =>
         [:binding => 1, :visibility => "Compute", :type => "Storage"],
 ]
 
 bindings = [
-    WGPU.GPUBuffer =>
+    WGPUCore.GPUBuffer =>
         [:binding => 0, :buffer => buffer1, :offset => 0, :size => buffer1.size],
-    WGPU.GPUBuffer =>
+    WGPUCore.GPUBuffer =>
         [:binding => 1, :buffer => buffer2, :offset => 0, :size => buffer2.size],
 ]
 
 
 (bindGroupLayouts, bindGroup) =
-    WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-computeStage = WGPU.createComputeStage(cshader[], "main")
+    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+computeStage = WGPUCore.createComputeStage(cshader[], "main")
 computePipeline =
-    WGPU.createComputePipeline(gpuDevice, "computePipeline", pipelineLayout, computeStage)
+    WGPUCore.createComputePipeline(gpuDevice, "computePipeline", pipelineLayout, computeStage)
 
-commandEncoder = WGPU.createCommandEncoder(gpuDevice, "Command Encoder")
-computePass = WGPU.beginComputePass(commandEncoder)
+commandEncoder = WGPUCore.createCommandEncoder(gpuDevice, "Command Encoder")
+computePass = WGPUCore.beginComputePass(commandEncoder)
 
-WGPU.setPipeline(computePass, computePipeline)
-WGPU.setBindGroup(computePass, 0, bindGroup, UInt32[], 0, 999999)
-WGPU.dispatchWorkGroups(computePass, n, 1, 1)
-WGPU.endComputePass(computePass)
-WGPU.submit(gpuDevice.queue, [WGPU.finish(commandEncoder)])
-WGPU.readBuffer(gpuDevice, buffer2, 0, sizeof(data))
+WGPUCore.setPipeline(computePass, computePipeline)
+WGPUCore.setBindGroup(computePass, 0, bindGroup, UInt32[], 0, 999999)
+WGPUCore.dispatchWorkGroups(computePass, n, 1, 1)
+WGPUCore.endComputePass(computePass)
+WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(commandEncoder)])
+WGPUCore.readBuffer(gpuDevice, buffer2, 0, sizeof(data))

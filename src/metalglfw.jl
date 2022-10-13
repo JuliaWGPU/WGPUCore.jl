@@ -4,7 +4,7 @@ abstract type GLFWCanvas end
 
 using GLFW
 
-using WGPU
+using WGPUCore
 
 using Pkg.Artifacts
 

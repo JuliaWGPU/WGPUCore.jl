@@ -1,4 +1,4 @@
-name = "WGPU"
+name = "WGPUCore"
 uuid = "53d714bf-0d76-4802-84b4-6cb75cca55f5"
 authors = ["arhik <arhik23@gmail.com>"]
 version = "0.1.1"
@@ -17,4 +17,6 @@ WGPUNative = "c14bfd16-04f9-4c2f-a915-b355584b5509"
 CEnum = "^0.4"
 Reexport = "^1.2"
 WGPUNative = "^0.1"
+GLFW = "^3.4"
+GLFW_jll = "^3.3"
 julia = "^1.8.0"

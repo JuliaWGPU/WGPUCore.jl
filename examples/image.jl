@@ -1,5 +1,5 @@
 using OhMyREPL
-using WGPU
+using WGPUCore
 using GeometryBasics
 using LinearAlgebra
 using Rotations
@@ -9,7 +9,7 @@ using StaticArrays
 using Images
 using ImageView
 
-WGPU.SetLogLevel(WGPULogLevel_Debug)
+WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}("""
                              struct Locals {
@@ -51,11 +51,11 @@ shaderSource = Vector{UInt8}("""
                              }
                              """);
 
-canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas)
-gpuDevice = WGPU.getDefaultDevice()
-shadercode = WGPU.loadWGSL(shaderSource) |> first;
+canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
+gpuDevice = WGPUCore.getDefaultDevice()
+shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
 cshader =
-    Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
 
 flatten(x) = reshape(x, (:,))
 
@@ -122,22 +122,22 @@ uniformData = ones(Float32, (4, 4)) |> Diagonal |> Matrix
 
 
 (vertexBuffer, _) =
-    WGPU.createBufferWithData(gpuDevice, "vertexBuffer", vertexData, ["Vertex", "CopySrc"])
+    WGPUCore.createBufferWithData(gpuDevice, "vertexBuffer", vertexData, ["Vertex", "CopySrc"])
 
 
 (indexBuffer, _) =
-    WGPU.createBufferWithData(gpuDevice, "indexBuffer", indexData |> flatten, "Index")
+    WGPUCore.createBufferWithData(gpuDevice, "indexBuffer", indexData |> flatten, "Index")
 
-(uniformBuffer, _) = WGPU.createBufferWithData(
+(uniformBuffer, _) = WGPUCore.createBufferWithData(
     gpuDevice,
     "uniformBuffer",
     uniformData,
     ["Uniform", "CopyDst"],
 )
 
-renderTextureFormat = WGPU.getPreferredFormat(canvas)
+renderTextureFormat = WGPUCore.getPreferredFormat(canvas)
 
-texture = WGPU.createTexture(
+texture = WGPUCore.createTexture(
     gpuDevice,
     "texture",
     textureSize,
@@ -145,10 +145,10 @@ texture = WGPU.createTexture(
     1,
     WGPUTextureDimension_2D,
     WGPUTextureFormat_RGBA8UnormSrgb,
-    WGPU.getEnum(WGPU.WGPUTextureUsage, ["CopyDst", "TextureBinding"]),
+    WGPUCore.getEnum(WGPUCore.WGPUTextureUsage, ["CopyDst", "TextureBinding"]),
 )
 
-textureView = WGPU.createView(texture)
+textureView = WGPUCore.createView(texture)
 
 dstLayout = [
     :dst => [
@@ -165,63 +165,52 @@ dstLayout = [
     :textureSize => textureSize,
 ]
 
-sampler = WGPU.createSampler(gpuDevice)
+sampler = WGPUCore.createSampler(gpuDevice)
 
-WGPU.writeTexture(gpuDevice.queue; dstLayout...)
+WGPUCore.writeTexture(gpuDevice.queue; dstLayout...)
 
 bindingLayouts = [
-    WGPU.WGPUBufferEntry =>
+    WGPUCore.WGPUBufferEntry =>
         [:binding => 0, :visibility => ["Vertex", "Fragment"], :type => "Uniform"],
-    WGPU.WGPUTextureEntry => [
+    WGPUCore.WGPUTextureEntry => [
         :binding => 1,
         :visibility => "Fragment",
         :sampleType => "Float",
         :viewDimension => "2D",
         :multisampled => false,
     ],
-    WGPU.WGPUSamplerEntry =>
+    WGPUCore.WGPUSamplerEntry =>
         [:binding => 2, :visibility => "Fragment", :type => "Filtering"],
 ]
 
 bindings = [
-    WGPU.GPUBuffer => [
+    WGPUCore.GPUBuffer => [
         :binding => 0,
         :buffer => uniformBuffer,
         :offset => 0,
         :size => uniformBuffer.size,
     ],
-    WGPU.GPUTextureView => [:binding => 1, :textureView => textureView],
-    WGPU.GPUSampler => [:binding => 2, :sampler => sampler],
+    WGPUCore.GPUTextureView => [:binding => 1, :textureView => textureView],
+    WGPUCore.GPUSampler => [:binding => 2, :sampler => sampler],
 ]
 
 (bindGroupLayouts, bindGroup) =
-    WGPU.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-# 
-# cBindingLayoutsList = WGPU.makeEntryList(bindingLayouts) |> Ref
-# cBindingsList = WGPU.makeBindGroupEntryList(bindings) |> Ref
-# bindGroupLayout = WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-# bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
-# 
-# if bindGroupLayout.internal[] == C_NULL
-# bindGroupLayouts = []
-# else
-# bindGroupLayouts = map((x)->x.internal[], [bindGroupLayout,])
-# end
+    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 
-pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 
-presentContext = WGPU.getContext(canvas)
+presentContext = WGPUCore.getContext(canvas)
 
-WGPU.determineSize(presentContext[])
+WGPUCore.determineSize(presentContext[])
 
-WGPU.config(presentContext, device = gpuDevice, format = renderTextureFormat)
+WGPUCore.config(presentContext, device = gpuDevice, format = renderTextureFormat)
 
 renderpipelineOptions = [
-    WGPU.GPUVertexState => [
+    WGPUCore.GPUVertexState => [
         :_module => cshader[],
         :entryPoint => "vs_main",
         :buffers => [
-            WGPU.GPUVertexBufferLayout => [
+            WGPUCore.GPUVertexBufferLayout => [
                 :arrayStride => 6 * 4,
                 :stepMode => "Vertex",
                 :attributes => [
@@ -239,20 +228,20 @@ renderpipelineOptions = [
             ],
         ],
     ],
-    WGPU.GPUPrimitiveState => [
+    WGPUCore.GPUPrimitiveState => [
         :topology => "TriangleList",
         :frontFace => "CCW",
         :cullMode => "Back",
         :stripIndexFormat => "Undefined",
     ],
-    WGPU.GPUDepthStencilState => [],
-    WGPU.GPUMultiSampleState =>
+    WGPUCore.GPUDepthStencilState => [],
+    WGPUCore.GPUMultiSampleState =>
         [:count => 1, :mask => typemax(UInt32), :alphaToCoverageEnabled => false],
-    WGPU.GPUFragmentState => [
+    WGPUCore.GPUFragmentState => [
         :_module => cshader[],
         :entryPoint => "fs_main",
         :targets => [
-            WGPU.GPUColorTargetState => [
+            WGPUCore.GPUColorTargetState => [
                 :format => renderTextureFormat,
                 :color => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
                 :alpha => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
@@ -262,7 +251,7 @@ renderpipelineOptions = [
 ]
 
 renderPipeline =
-    WGPU.createRenderPipeline(gpuDevice, pipelineLayout, renderpipelineOptions; label = " ")
+    WGPUCore.createRenderPipeline(gpuDevice, pipelineLayout, renderpipelineOptions; label = " ")
 
 
 prevTime = time()
@@ -276,11 +265,11 @@ try
         uniformData[1:3, 1:3] .= rotxy * ortho
 
         (tmpBuffer, _) =
-            WGPU.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
+            WGPUCore.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
 
-        currentTextureView = WGPU.getCurrentTexture(presentContext[]) |> Ref
-        cmdEncoder = WGPU.createCommandEncoder(gpuDevice, "CMD ENCODER")
-        WGPU.copyBufferToBuffer(
+        currentTextureView = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "CMD ENCODER")
+        WGPUCore.copyBufferToBuffer(
             cmdEncoder,
             tmpBuffer,
             0,
@@ -290,9 +279,9 @@ try
         )
 
         renderPassOptions = [
-            WGPU.GPUColorAttachments => [
+            WGPUCore.GPUColorAttachments => [
                 :attachments => [
-                    WGPU.GPUColorAttachment => [
+                    WGPUCore.GPUColorAttachment => [
                         :view => currentTextureView[],
                         :resolveTarget => C_NULL,
                         :clearValue => (
@@ -306,20 +295,20 @@ try
                     ],
                 ],
             ],
-            WGPU.GPUDepthStencilAttachments => [],
+            WGPUCore.GPUDepthStencilAttachments => [],
         ]
 
-        renderPass = WGPU.beginRenderPass(
+        renderPass = WGPUCore.beginRenderPass(
             cmdEncoder,
             renderPassOptions |> Ref;
             label = "BEGIN RENDER PASS",
         )
 
-        WGPU.setPipeline(renderPass, renderPipeline)
-        WGPU.setIndexBuffer(renderPass, indexBuffer, "Uint32")
-        WGPU.setVertexBuffer(renderPass, 0, vertexBuffer)
-        WGPU.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
-        WGPU.drawIndexed(
+        WGPUCore.setPipeline(renderPass, renderPipeline)
+        WGPUCore.setIndexBuffer(renderPass, indexBuffer, "Uint32")
+        WGPUCore.setVertexBuffer(renderPass, 0, vertexBuffer)
+        WGPUCore.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
+        WGPUCore.drawIndexed(
             renderPass,
             Int32(indexBuffer.size / sizeof(UInt32));
             instanceCount = 1,
@@ -327,16 +316,16 @@ try
             baseVertex = 0,
             firstInstance = 0,
         )
-        WGPU.endEncoder(renderPass)
-        WGPU.submit(gpuDevice.queue, [WGPU.finish(cmdEncoder)])
-        WGPU.present(presentContext[])
+        WGPUCore.endEncoder(renderPass)
+        WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
+        WGPUCore.present(presentContext[])
         GLFW.PollEvents()
-        # dataDown = reinterpret(Float32, WGPU.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
+        # dataDown = reinterpret(Float32, WGPUCore.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
         # @info sum(dataDown .== vertexData |> flatten)
         # @info dataDown
         # println("FPS : $(1/(a2 - prevTime))")
-        # WGPU.destroy(tmpBuffer)
-        # WGPU.destroy(currentTextureView[])
+        # WGPUCore.destroy(tmpBuffer)
+        # WGPUCore.destroy(currentTextureView[])
         prevTime = a2
     end
 finally

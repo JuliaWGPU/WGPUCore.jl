@@ -4,7 +4,7 @@ using Test
 using WGPUNative
 using GLFW
 
-WGPU.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Off)
 
 shaderSource = Vector{UInt8}(
     """
@@ -35,19 +35,19 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPU.defaultInit(WGPU.WGPUCanvas);
-gpuDevice = WGPU.getDefaultDevice();
-shadercode = WGPU.loadWGSL(shaderSource) |> first;
+canvas = WGPUCore.defaultInit(WGPUCore.WGPUCanvas);
+gpuDevice = WGPUCore.getDefaultDevice();
+shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
 cshader =
-    Ref(WGPU.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPU.makeEntryList(bindingLayouts))
-cBindingsList = Ref(WGPU.makeBindGroupEntryList(bindings))
+cBindingLayoutsList = Ref(WGPUCore.makeEntryList(bindingLayouts))
+cBindingsList = Ref(WGPUCore.makeBindGroupEntryList(bindings))
 bindGroupLayout =
-    WGPU.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPU.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
+    WGPUCore.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
+bindGroup = WGPUCore.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
 if bindGroupLayout.internal[] == C_NULL
     bindGroupLayouts = C_NULL
@@ -55,15 +55,15 @@ else
     bindGroupLayouts = map((x) -> x.internal[], [bindGroupLayout])
 end
 
-pipelineLayout = WGPU.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
-swapChainFormat = WGPU.getPreferredFormat(canvas)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 
 fStateOptions =
-    WGPU.GPUFragmentState => [
+    WGPUCore.GPUFragmentState => [
         :_module => cshader[],
         :entryPoint => "fs_main",
         :targets => [
-            WGPU.GPUColorTargetState => [
+            WGPUCore.GPUColorTargetState => [
                 :format => swapChainFormat,
                 :color => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
                 :alpha => [:srcFactor => "One", :dstFactor => "Zero", :operation => "Add"],
@@ -71,9 +71,9 @@ fStateOptions =
         ],
     ]
 
-fstate = WGPU.createEntry(fStateOptions.first; fStateOptions.second...)
+fstate = WGPUCore.createEntry(fStateOptions.first; fStateOptions.second...)
 
-fs = unsafe_load(convert(Ptr{WGPU.WGPUFragmentState}, fstate.internal[]))
+fs = unsafe_load(convert(Ptr{WGPUCore.WGPUFragmentState}, fstate.internal[]))
 
 Test.@testset "FragmentState" begin
     Test.@test unsafe_string(fs.entryPoint) == "fs_main"
