@@ -23,7 +23,7 @@ shaderSource = Vector{UInt8}(
 	    @location(1) texcoord: vec2<f32>,
 	};
 	struct VertexOutput {
-	    @location(0) texcoord: vec2<f32>,
+	    @location(0) texcoord: vec2<f32>,	
 	    @builtin(position) pos: vec4<f32>,
 	};
 

@@ -21,7 +21,6 @@ shaderSource = Vector{UInt8}(
 	}
 	"""
 );
-
 n = 20
 
 data = Array{UInt8, 1}(undef, n)
@@ -30,7 +29,7 @@ for i in 1:n
 	data[i] = i
 end
 
-canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas);
+# canvas = WGPU.defaultCanvas(WGPU.WGPUCanvas);
 gpuDevice = WGPU.getDefaultDevice()
 
 shadercode = WGPU.loadWGSL(shaderSource) |> first

@@ -1,22 +1,32 @@
 abstract type GLFWCanvas end
 
 # should remove this objectiveC dependency
-using GLFW_jll
+
 using GLFW
 
-# Defining GLFW related functions
-function GetX11Window(w::GLFW.Window)
-	ptr = ccall((:glfwGetX11Window, libglfw), GLFW.Window, (GLFW.Window,), w)
-	return ptr
-end
-
-function GetX11Display()
-	ptr = ccall((:glfwGetX11Display, libglfw), Ptr{GLFW.Window}, ())
-	return ptr
-end
-
-
 using WGPU
+
+using Pkg.Artifacts
+
+artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
+
+wgpu_hash = artifact_hash("WGPU", artifact_toml)
+
+wgpulibpath = artifact_path(wgpu_hash)
+
+const libcocoa = joinpath(wgpulibpath, "cocoa")
+
+function getMetalLayer()
+	ccall((:getMetalLayer, libcocoa), Ptr{UInt8}, (), )
+end
+
+function wantLayer(nswindow)
+	ccall((:wantLayer, libcocoa), Cvoid, (Ptr{Nothing},), nswindow)
+end
+
+function setMetalLayer(nswindow, metalLayer)
+	ccall((:setMetalLayer, libcocoa), Cvoid, (Ptr{Nothing}, Ptr{Nothing}), nswindow, metalLayer)
+end
 
 mutable struct MouseState
 	leftButton
@@ -34,15 +44,15 @@ defaultInit(::Type{MouseState}) = begin
 	)
 end
 
-mutable struct GLFWX11Canvas <: GLFWCanvas
+mutable struct GLFWMacCanvas <: GLFWCanvas
 	title::String
 	size::Tuple
-	display
 	windowRef # This has to be platform specific may be
-	windowX11
-	surface
-	surfaceDescriptor
-	XlibSurface
+	surfaceRef
+	surfaceDescriptorRef
+	metalSurfaceRef
+	nsWindow
+	metalLayer
 	needDraw
 	requestDrawTimerRunning
 	changingPixelRatio
@@ -60,46 +70,46 @@ function attachDrawFunction(canvas::GLFWCanvas, f)
 end
 
 
-function defaultCanvas(::Type{GLFWX11Canvas}; size=(500, 500))
-	displayRef = Ref{Ptr{GLFW.Window}}()
+function defaultCanvas(::Type{GLFWMacCanvas}; size=(500, 500))
 	windowRef = Ref{GLFW.Window}()
-	windowX11Ref = Ref{GLFW.Window}()
 	surfaceRef = Ref{WGPUSurface}()
-	XlibSurfaceRef = Ref{WGPUSurfaceDescriptorFromXlibWindow}()
 	surfaceDescriptorRef = Ref{WGPUSurfaceDescriptor}()
-	displayRef[] = GetX11Display() 
 	title = "GLFW WGPU Window"
-	windowRef[] = window = GLFW.CreateWindow(1280, 960, title)
-	windowX11Ref[] = GetX11Window(window)
-	XlibSurfaceRef[] = partialInit(
-				        WGPUSurfaceDescriptorFromXlibWindow;
+	GLFW.Init()
+	GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
+	windowRef[] = window = GLFW.CreateWindow(size..., title)
+	nswindow = GLFW.GetCocoaWindow(windowRef[]) |> Ref
+	metalLayer = getMetalLayer() |> Ref
+	wantLayer(nswindow[])
+	setMetalLayer(nswindow[], metalLayer[])
+	metalSurfaceRef = partialInit(
+				        WGPUSurfaceDescriptorFromMetalLayer;
 				        chain = partialInit(
 				            WGPUChainedStruct;
 				            next = C_NULL,
-				            sType = WGPUSType_SurfaceDescriptorFromXlibWindow
+				            sType = WGPUSType_SurfaceDescriptorFromMetalLayer
 				        ),
-				        display = displayRef[],
-				        window = windowX11Ref[].handle
-				    )
+				        layer = metalLayer[]
+				    ) |> Ref
 	surfaceDescriptorRef[] = partialInit(
 				WGPUSurfaceDescriptor;
 				label = C_NULL,
-				nextInChain = pointer_from_objref(XlibSurfaceRef) 
+				nextInChain = pointer_from_objref(metalSurfaceRef) 
 		   	)
 	surfaceRef[] = 	wgpuInstanceCreateSurface(
 	    C_NULL,
 		pointer_from_objref(surfaceDescriptorRef)
 	)
 	title = "GLFW Window"
-	canvas = GLFWX11Canvas(
+	canvas = GLFWMacCanvas(
 		title,
 		size,
-		displayRef,
 		windowRef,
-		windowX11Ref,
 		surfaceRef,
 		surfaceDescriptorRef,
-		XlibSurfaceRef,
+		metalSurfaceRef,
+		nswindow,
+		metalLayer,
 		false,
 		nothing,
 		false,
@@ -128,7 +138,6 @@ function defaultCanvas(::Type{GLFWX11Canvas}; size=(500, 500))
 	return canvas
 end
 
-
 function setJoystickCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
 		callback = (joystick, event) -> println("$joystick $event")
@@ -137,7 +146,6 @@ function setJoystickCallback(canvas::GLFWCanvas, f=nothing)
 	end
 	GLFW.SetJoystickCallback(callback)	
 end
-
 
 function setMonitorCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
@@ -168,7 +176,11 @@ end
 
 function setWindowSizeCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
-		callback = (_, w, h) -> println("window size : $w $h")
+		callback = (_, w, h) -> begin
+			println("window size : $w $h")
+			canvas.size = (w, h)
+			determineSize(canvas.context[])
+		end
 	else
 		callback = f
 	end
@@ -230,7 +242,9 @@ end
 
 function setMouseButtonCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
-		callback = (_, button, action, mods) -> println("$button : $action : $mods")
+		callback = (win, button, action, mods) -> begin
+			println("$button : $action : $mods")
+		end
 	else
 		callback = f
 	end
@@ -255,7 +269,6 @@ function setScrollCallback(canvas::GLFWCanvas, f=nothing)
 	GLFW.SetScrollCallback(canvas.windowRef[], callback)	
 end
 
-
 function setDropCallback(canvas::GLFWCanvas, f=nothing)
 	if f==nothing
 		callback = (_, paths) -> println("path $paths")
@@ -266,9 +279,8 @@ function setDropCallback(canvas::GLFWCanvas, f=nothing)
 end
 
 
-
 mutable struct GPUCanvasContext
-	canvasRef::Ref{GLFWX11Canvas}
+	canvasRef::Ref{GLFWMacCanvas}
 	surfaceSize
 	surfaceId
 	internal
@@ -284,13 +296,13 @@ mutable struct GPUCanvasContext
 	logicalSize
 end
 
-function getContext(gpuCanvas::GLFWX11Canvas)
+function getContext(gpuCanvas::GLFWMacCanvas)
 	if gpuCanvas.context == nothing
 		context =  partialInit(
 			GPUCanvasContext;
 			canvasRef = Ref(gpuCanvas),
 			surfaceSize = (-1, -1),
-			surfaceId = gpuCanvas.surface[],
+			surfaceId = gpuCanvas.surfaceRef[],
 			internal = nothing,
 			device = gpuCanvas.device,
 			physicalSize=gpuCanvas.size,
@@ -319,7 +331,6 @@ function unconfig(a::T) where T
 		setproperty!(a, field, defaultInit(fieldtype(T, field)))
 	end
 end
-
 
 function configure(
 	canvasContext::GPUCanvasContext;
@@ -359,7 +370,7 @@ function determineSize(cntxt::GPUCanvasContext)
 end
 
 
-function getPreferredFormat(canvas::GLFWX11Canvas)
+function getPreferredFormat(canvas::GLFWMacCanvas)
 	return getEnum(WGPUTextureFormat, "BGRA8Unorm")
 end
 
@@ -426,8 +437,8 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
 	) |> Ref
 end
 
-function destroyWindow(canvas::GLFWX11Canvas)
+function destroyWindow(canvas::GLFWMacCanvas)
 	GLFW.DestroyWindow(canvas.windowRef[])
 end
 
-const WGPUCanvas = GLFWX11Canvas
+const WGPUCanvas = GLFWMacCanvas

@@ -1737,7 +1737,7 @@ forceOffscreen = false
 if forceOffscreen == true
 	include("offscreen.jl")
 elseif Sys.isapple()
-	include("glfw.jl")
+	include("metalglfw.jl")
 elseif Sys.islinux()
 	include("glfw.jl")
 end
