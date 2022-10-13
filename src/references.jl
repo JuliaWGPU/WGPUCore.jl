@@ -1,38 +1,38 @@
 module Mod
 
 mutable struct R
-	a::Int32
-	function R(a)
-		r = new(a)
-		f(r) = begin
-			println("Finialize R : $r")
-		end
-		finalizer(f, r)
-	end
+    a::Int32
+    function R(a)
+        r = new(a)
+        f(r) = begin
+            println("Finialize R : $r")
+        end
+        finalizer(f, r)
+    end
 end
 
 mutable struct T
-	a::Union{R, Nothing}
-	function T(a::Int)
-		r = R(a)
-		t = new(r)
-		f(t) = begin
-			println("Finialize T : $t")
-		end
-		finalizer(f, t)
-	end
+    a::Union{R,Nothing}
+    function T(a::Int)
+        r = R(a)
+        t = new(r)
+        f(t) = begin
+            println("Finialize T : $t")
+        end
+        finalizer(f, t)
+    end
 end
 
-function destroy(t::Ref{T}) where T
-	@info getPointer(t.x)
-	t[].a = nothing
-	@info getPointer(t.x)
+function destroy(t::Ref{T}) where {T}
+    @info getPointer(t.x)
+    t[].a = nothing
+    @info getPointer(t.x)
 end
 
 function destroy(t)
-	@info getPointer(t)
-	t = nothing
-	@info getPointer(t)
+    @info getPointer(t)
+    t = nothing
+    @info getPointer(t)
 end
 
 function unsafe_pointer_from_objectref(@nospecialize(x))
@@ -40,8 +40,8 @@ function unsafe_pointer_from_objectref(@nospecialize(x))
     ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), x)
 end
 
-function getPointer(t::T) where T
-	unsafe_pointer_from_objectref(t) |> (x) -> convert(Ptr{T}, x)
+function getPointer(t::T) where {T}
+    unsafe_pointer_from_objectref(t) |> (x) -> convert(Ptr{T}, x)
 end
 
 end
@@ -59,7 +59,7 @@ Mod.destroy(t)
 
 tloadPtr = Mod.getPointer(tload)
 
-Mod.destroy(t|>Ref)
+Mod.destroy(t |> Ref)
 
 tload = unsafe_load(tptr)
 
@@ -72,7 +72,3 @@ Mod.destroy(tref)
 t = 3
 
 GC.gc()
-
-
-
-
