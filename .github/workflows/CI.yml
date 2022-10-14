@@ -52,8 +52,7 @@ jobs:
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 
-            'using Documenter: DocMeta, doctest
+      - run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 'using Documenter: DocMeta, doctest
             using WGPUCore
             DocMeta.setdocmeta!(WGPUCore, :DocTestSetup, :(using WGPUCore); recursive=true)
             doctest(WGPUCore)'
