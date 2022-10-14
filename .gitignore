@@ -1,2 +1,5 @@
-.DS_Store
-test/vertexBufferLayoutTest.jl_
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+/Manifest.toml
+/docs/build/
