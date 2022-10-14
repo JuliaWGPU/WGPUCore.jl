@@ -52,8 +52,8 @@ jobs:
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name "Generating Docs"
-        shell: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=monorepo {0}
+      - name: Generating Docs
+        shell: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs {0}
         run: |
           using Documenter:DocMeta, doctest;
           using WGPUCore
