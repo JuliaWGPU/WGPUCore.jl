@@ -2,7 +2,6 @@ module WGPUCore
 
 
 using CEnum
-using GLFW
 ##
 
 include("utils.jl")
