@@ -1,8 +1,9 @@
 abstract type GLFWCanvas end
 
-# should remove this objectiveC dependency
 using GLFW_jll
 using GLFW
+
+using WGPUCore
 
 # Defining GLFW related functions
 function GetX11Window(w::GLFW.Window)
@@ -16,7 +17,7 @@ function GetX11Display()
 end
 
 
-using WGPUCore
+
 
 mutable struct MouseState
     leftButton::Any
@@ -64,7 +65,9 @@ function defaultCanvas(::Type{GLFWX11Canvas}; size = (500, 500))
     surfaceDescriptorRef = Ref{WGPUSurfaceDescriptor}()
     displayRef[] = GetX11Display()
     title = "GLFW WGPU Window"
-    windowRef[] = window = GLFW.CreateWindow(1280, 960, title)
+    GLFW.Init()
+    GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
+    windowRef[] = window = GLFW.CreateWindow(size..., title)
     windowX11Ref[] = GetX11Window(window)
     XlibSurfaceRef[] = partialInit(
         WGPUSurfaceDescriptorFromXlibWindow;
@@ -161,7 +164,11 @@ end
 
 function setWindowSizeCallback(canvas::GLFWCanvas, f = nothing)
     if f == nothing
-        callback = (_, w, h) -> println("window size : $w $h")
+        callback = (_, w, h) -> begin
+            println("window size : $w $h")
+            canvas.size = (w, h)
+            determineSize(canvas.context[])
+        end
     else
         callback = f
     end
@@ -224,7 +231,9 @@ end
 
 function setMouseButtonCallback(canvas::GLFWCanvas, f = nothing)
     if f == nothing
-        callback = (_, button, action, mods) -> println("$button : $action : $mods")
+        callback = (win, button, action, mods) -> begin
+            println("$button : $action : $mods")
+        end
     else
         callback = f
     end

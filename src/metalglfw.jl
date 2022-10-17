@@ -1,7 +1,5 @@
 abstract type GLFWCanvas end
 
-# should remove this objectiveC dependency
-
 using GLFW_jll
 using GLFW
 
