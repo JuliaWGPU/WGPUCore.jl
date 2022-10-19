@@ -147,16 +147,14 @@ bufferSize = bufferDimensions.padded_bytes_per_row * bufferDimensions.height
 
 outputBuffer = wgpuDeviceCreateBuffer(
     device[],
-    pointer_from_objref(
-        Ref(
-            partialInit(
-                WGPUBufferDescriptor;
-                nextInChain = C_NULL,
-                label = pointer(Vector{UInt8}("Output Buffer")),
-                usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-                size = bufferSize,
-                mappedAtCreation = false,
-            ),
+    Ref(
+        partialInit(
+            WGPUBufferDescriptor;
+            nextInChain = C_NULL,
+            label = pointer(Vector{UInt8}("Output Buffer")),
+            usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+            size = bufferSize,
+            mappedAtCreation = false,
         ),
     ),
 )
@@ -174,19 +172,17 @@ textureExtent = partialInit(
 
 texture = wgpuDeviceCreateTexture(
     device[],
-    pointer_from_objref(
-        Ref(
-            partialInit(
-                WGPUTextureDescriptor;
-                nextInChain = C_NULL,
-                lable = C_NULL,
-                size = textureExtent,
-                mipLevelCount = 1,
-                sampleCount = 1,
-                dimension = WGPUTextureDimension_2D,
-                format = WGPUTextureFormat_RGBA8UnormSrgb,
-                usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
-            ),
+    Ref(
+        partialInit(
+            WGPUTextureDescriptor;
+            nextInChain = C_NULL,
+            lable = C_NULL,
+            size = textureExtent,
+            mipLevelCount = 1,
+            sampleCount = 1,
+            dimension = WGPUTextureDimension_2D,
+            format = WGPUTextureFormat_RGBA8UnormSrgb,
+            usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
         ),
     ),
 )
@@ -201,34 +197,28 @@ encoder = wgpuDeviceCreateCommandEncoder(
 ## outputAttachment
 outputAttachment = wgpuTextureCreateView(
     texture,
-    pointer_from_objref(Ref(defaultInit(WGPUTextureViewDescriptor))),
+    Ref(defaultInit(WGPUTextureViewDescriptor)),
 )
 
 
 ## renderPass
 renderPass = wgpuCommandEncoderBeginRenderPass(
     encoder,
-    pointer_from_objref(
-        Ref(
+    partialInit(
+        WGPURenderPassDescriptor;
+        colorAttachments = pointer_from_objref(
             partialInit(
-                WGPURenderPassDescriptor;
-                colorAttachments = pointer_from_objref(
-                    Ref(
-                        partialInit(
-                            WGPURenderPassColorAttachment;
-                            view = outputAttachment,
-                            resolveTarget = 0,
-                            loadOp = WGPULoadOp_Clear,
-                            storeOp = WGPUStoreOp_Store,
-                            clearValue = WGPUColor(1.0, 0.0, 0.0, 1.0),
-                        ),
-                    ),
-                ),
-                colorAttachmentCount = 1,
-                depthStencilAttachment = C_NULL,
+                WGPURenderPassColorAttachment;
+                view = outputAttachment,
+                resolveTarget = 0,
+                loadOp = WGPULoadOp_Clear,
+                storeOp = WGPUStoreOp_Store,
+                clearValue = WGPUColor(1.0, 0.0, 0.0, 1.0),
             ),
         ),
-    ),
+        colorAttachmentCount = 1,
+        depthStencilAttachment = C_NULL,
+    ) |> pointer_from_objref,
 )
 
 
@@ -241,55 +231,25 @@ wgpuRenderPassEncoderEnd(renderPass)
 
 wgpuCommandEncoderCopyTextureToBuffer(
     encoder,
-    pointer_from_objref(
-        Ref(
-            partialInit(
-                WGPUImageCopyTexture;
-                texture = texture,
-                miplevel = 0,
-                origin = WGPUOrigin3D(0, 0, 0),
-            ),
+    partialInit(
+        WGPUImageCopyTexture;
+        texture = texture,
+        miplevel = 0,
+        origin = WGPUOrigin3D(0, 0, 0),
+    ) |> pointer_from_objref,
+    partialInit(
+        WGPUImageCopyBuffer;
+        buffer = outputBuffer,
+        layout = partialInit(
+            WGPUTextureDataLayout;
+            offset = 0,
+            bytesPerRow = bufferDimensions.padded_bytes_per_row,
+            rowsPerImage = 0,
         ),
-    ),
-    pointer_from_objref(
-        Ref(
-            partialInit(
-                WGPUImageCopyBuffer;
-                buffer = outputBuffer,
-                layout = partialInit(
-                    WGPUTextureDataLayout;
-                    offset = 0,
-                    bytesPerRow = bufferDimensions.padded_bytes_per_row,
-                    rowsPerImage = 0,
-                ),
-            ),
-        ),
-    ),
-    Ref(textureExtent),
+    ) |> pointer_from_objref,
+    textureExtent |> pointer_from_objref,
 )
 
-##
-
-
-## 
-#
-#
-#
-#
-##
-#
-#
-#
-##
-#
-#
-#
-#
-##
-#
-#
-#
-#
 ## queue
 queue = wgpuDeviceGetQueue(device[])
 
@@ -300,11 +260,9 @@ cmdBuffer = wgpuCommandEncoderFinish(
 )
 
 ## submit queue
-
 wgpuQueueSubmit(queue, 1, Ref(cmdBuffer))
 
 ## MapAsync
-
 asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
 
 function readBufferMap(status::WGPUBufferMapAsyncStatus, userData)
@@ -330,11 +288,7 @@ for i = 1:width*height
     println(i, " : ", unsafe_load(times, i))
 end
 
-
-
-
 ## Unmap
-#
 wgpuBufferUnmap(outputBuffer)
 
 ## TODO dump as an image
