@@ -1,7 +1,7 @@
 name = "WGPUCore"
 uuid = "53d714bf-0d76-4802-84b4-6cb75cca55f5"
 authors = ["arhik <arhik23@gmail.com>"]
-version = "0.1.2"
+version = "0.1.4"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
