@@ -5,5 +5,5 @@
 [![Build Status](https://github.com/arhik/WGPUCore.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/arhik/WGPUCore.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/arhik/WGPUCore.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/arhik/WGPUCore.jl)
 
-WGPU Native Core based graphics engine
+WGPU Native based graphics engine core
 
