@@ -1,6 +1,4 @@
-using OhMyREPL
 using WGPUCore
-using GeometryBasics
 using LinearAlgebra
 using Rotations
 using WGPUNative
@@ -11,45 +9,47 @@ using ImageView
 
 WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
-shaderSource = Vector{UInt8}("""
-                             struct Locals {
-                                 transform: mat4x4<f32>,
-                             };
+shaderSource = Vector{UInt8}(
+	"""
+    struct Locals {
+        transform: mat4x4<f32>,
+    };
 
-                             @group(0) @binding(0)
-                             var<uniform> r_locals: Locals;
+    @group(0) @binding(0)
+    var<uniform> r_locals: Locals;
 
-                             struct VertexInput {
-                                 @location(0) pos : vec4<f32>,
-                                 @location(1) texcoord: vec2<f32>,
-                             };
+    struct VertexInput {
+        @location(0) pos : vec4<f32>,
+        @location(1) texcoord: vec2<f32>,
+    };
 
-                             struct VertexOutput {
-                                 @location(0) texcoord: vec2<f32>,
-                                 @builtin(position) pos: vec4<f32>,
-                             };
+    struct VertexOutput {
+        @location(0) texcoord: vec2<f32>,
+        @builtin(position) pos: vec4<f32>,
+    };
 
-                             @stage(vertex)
-                             fn vs_main(in: VertexInput) -> VertexOutput {
-                                 let ndc: vec4<f32> = r_locals.transform * in.pos;
-                                 var out: VertexOutput;
-                                 out.pos = vec4<f32>(ndc.x, ndc.y, 0.0, 1.0);
-                                 out.texcoord = in.texcoord;
-                                 return out;
-                             }
+    @stage(vertex)
+    fn vs_main(in: VertexInput) -> VertexOutput {
+        let ndc: vec4<f32> = r_locals.transform * in.pos;
+        var out: VertexOutput;
+        out.pos = vec4<f32>(ndc.x, ndc.y, 0.0, 1.0);
+        out.texcoord = in.texcoord;
+        return out;
+    }
 
-                             @group(0) @binding(1)
-                             var r_tex: texture_2d<f32>;
+    @group(0) @binding(1)
+    var r_tex: texture_2d<f32>;
 
-                             @group(0) @binding(2)
-                             var r_sampler: sampler;
+    @group(0) @binding(2)
+    var r_sampler: sampler;
 
-                             @stage(fragment)
-                             fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-                                 let value = textureSample(r_tex, r_sampler, in.texcoord);
-                                 return vec4<f32>(value);
-                             }
-                             """);
+    @stage(fragment)
+    fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+        let value = textureSample(r_tex, r_sampler, in.texcoord);
+        return vec4<f32>(value);
+    }
+    """,
+);
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()

@@ -37,7 +37,7 @@ end
 logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
 
 wgpuSetLogCallback(logcallback)
-wgpuSetLogLevel(WGPULogLevel(4))
+wgpuSetLogLevel(WGPULogLevel(1))
 
 ## 
 adapter = Ref(WGPUAdapter())
@@ -153,6 +153,22 @@ stagingBuffer = wgpuDeviceCreateBuffer(
         ),
     ),
 )
+
+# using BenchmarkTools
+
+# @benchmark  wgpuDeviceCreateBuffer(
+    # device[],
+    # Ref(
+        # partialInit(
+            # WGPUBufferDescriptor;
+            # nextInChain = C_NULL,
+            # label = pointer(Vector{UInt8}("StagingBuffer")),
+            # usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+            # size = sizeof(numbers),
+            # mappedAtCreation = false,
+        # ),
+    # ),
+# )
 
 ## StorageBuffer 
 storageBuffer = wgpuDeviceCreateBuffer(
