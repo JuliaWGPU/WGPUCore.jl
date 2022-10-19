@@ -1,6 +1,4 @@
-using OhMyREPL
 using WGPUCore
-using GeometryBasics
 using LinearAlgebra
 using Rotations
 using WGPUNative
