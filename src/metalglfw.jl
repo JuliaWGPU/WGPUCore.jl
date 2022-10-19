@@ -1,7 +1,6 @@
 abstract type GLFWCanvas end
 
-# should remove this objectiveC dependency
-
+using GLFW_jll
 using GLFW
 
 using WGPUCore
@@ -13,6 +12,10 @@ artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
 wgpu_hash = artifact_hash("WGPU", artifact_toml)
 
 wgpulibpath = artifact_path(wgpu_hash)
+
+function GetCocoaWindow(window::GLFW.Window)
+	ccall((:glfwGetCocoaWindow, libglfw), Ptr{Nothing}, (Ptr{GLFW.Window},), window.handle)
+end
 
 const libcocoa = joinpath(wgpulibpath, "cocoa")
 
@@ -79,7 +82,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
     GLFW.Init()
     GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
     windowRef[] = window = GLFW.CreateWindow(size..., title)
-    nswindow = GLFW.GetCocoaWindow(windowRef[]) |> Ref
+    nswindow = GetCocoaWindow(windowRef[]) |> Ref
     metalLayer = getMetalLayer() |> Ref
     wantLayer(nswindow[])
     setMetalLayer(nswindow[], metalLayer[])
