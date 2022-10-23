@@ -1,6 +1,8 @@
 using Debugger
 using Downloads
 
+include("build.jl")
+
 using Tar, Inflate, SHA
 
 arch = lowercase(String(Sys.ARCH))
@@ -9,7 +11,7 @@ kernel = lowercase(String(Sys.KERNEL))
 # modifying conventions for wgpu specifically based on
 # releases at https://github.com/gfx-rs/wgpu-native/releases/tag/v0.12.0.1
 
-version = "v.0.1.1"
+version = "v0.1.2"
 kernels = ["macos"]
 archs = ["arm64", "x86_64"]
 
@@ -32,15 +34,15 @@ function writeIO(io, arch, kernel, sha1, sha256, filename, url)
     )
 end
 
-remoteurl = "https://github.com/dvijaha/WGPU.jl/releases/download/v.0.1.1"
+remoteurl = "https://github.com/dvijaha/WGPUCore.jl/releases/download/v0.1.2"
 
 function generateArtifacts()
     for kernel in kernels
         for arch in archs
-            tarfile = "WGPU.$version.$(arch)-$(kernel).tar.gz"
+            tarfile = "WGPUCore.$version.$(arch)-$(kernel).tar.gz"
             try
                 run(`make clean`)
-                run(`make AARCH=$arch`)
+                build(arch)
                 run(`tar -czvf $tarfile cocoa.dylib`)
             catch
                 (e)
@@ -53,9 +55,10 @@ end
 function writeArtifactsTOML()
     for kernel in kernels
         for arch in archs
-            tarfile = "WGPU.$version.$(arch)-$(kernel).tar.gz"
+            tarfile = "WGPUCore.$version.$(arch)-$(kernel).tar.gz"
             try
                 Downloads.download(joinpath(remoteurl, tarfile), tarfile)
+                @info joinpath(remoteurl, tarfile)
                 sha256Val = bytes2hex(open(sha256, tarfile))
                 sha1Val = Tar.tree_hash(IOBuffer(inflate_gzip(tarfile)))
                 writeIO(
@@ -67,8 +70,7 @@ function writeArtifactsTOML()
                     "",
                     joinpath(remoteurl, tarfile),
                 )
-            catch
-                (e)
+            catch e 
                 println("$e")
             end
         end
