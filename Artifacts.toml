@@ -1,18 +1,18 @@
-[[WGPU]]
+[[Cocoa]]
 arch = "arm64"
 git-tree-sha1 = "6f3717d458df7760b3523c3851a3fe0ee6fc23bd"
 os = "macos"
 
-	[[WGPU.download]]
-	sha256 = "432def14f7f58ffbe6bdced17986148ef13a445c2cf254e4e38d29aa811fe350"
+	[[Cocoa.download]]
+	sha256 = "240ee9beaec2fc7f4104be42fc0fbb9792a9ccb73743e3f750a195e289a28512"
 	url = "https://github.com/dvijaha/WGPUCore.jl/releases/download/v0.1.2/WGPUCore.v0.1.2.arm64-macos.tar.gz"
 
-[[WGPU]]
+[[Cocoa]]
 arch = "x86_64"
 git-tree-sha1 = "0da4d5d51962f4f02ab3055612715be3b28235f7"
 os = "macos"
 
-	[[WGPU.download]]
+	[[Cocoa.download]]
 	sha256 = "f2e6a8d3a94562007bba3a32114e0c85a60ca7ab0ee4bd7b31d904a1eb64fd36"
 	url = "https://github.com/dvijaha/WGPUCore.jl/releases/download/v0.1.2/WGPUCore.v0.1.2.x86_64-macos.tar.gz"
 

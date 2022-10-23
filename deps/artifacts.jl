@@ -21,12 +21,12 @@ function writeIO(io, arch, kernel, sha1, sha256, filename, url)
     write(
         io,
         """
-        [[WGPU]]
+        [[Cocoa]]
         arch = "$arch"
         git-tree-sha1 = "$sha1"
         os = "$kernel"
 
-        	[[WGPU.download]]
+        	[[Cocoa.download]]
         	sha256 = "$sha256"
         	url = "$url"
 
@@ -41,11 +41,11 @@ function generateArtifacts()
         for arch in archs
             tarfile = "WGPUCore.$version.$(arch)-$(kernel).tar.gz"
             try
-                run(`make clean`)
+                run(`rm cocoa.dylib`)
                 build(arch)
                 run(`tar -czvf $tarfile cocoa.dylib`)
-            catch
-                (e)
+                run(`rm cocoa.dylib`)
+            catch(e)
                 println("$e")
             end
         end
