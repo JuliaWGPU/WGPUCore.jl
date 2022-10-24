@@ -9,15 +9,15 @@ using Pkg.Artifacts
 
 artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
 
-wgpu_hash = artifact_hash("WGPU", artifact_toml)
+cocoa_hash = artifact_hash("Cocoa", artifact_toml)
 
-wgpulibpath = artifact_path(wgpu_hash)
+cocoalibpath = artifact_path(cocoa_hash)
 
 function GetCocoaWindow(window::GLFW.Window)
 	ccall((:glfwGetCocoaWindow, libglfw), Ptr{Nothing}, (Ptr{GLFW.Window},), window.handle)
 end
 
-const libcocoa = joinpath(wgpulibpath, "cocoa")
+const libcocoa = joinpath(cocoalibpath, "cocoa")
 
 function getMetalLayer()
     ccall((:getMetalLayer, libcocoa), Ptr{UInt8}, ())

@@ -458,7 +458,7 @@ function createView(gpuTexture::GPUTexture; dimension = nothing)
     T = WGPUTextureViewDimension
     pairs = CEnum.name_value_pairs(T)
     for (key, value) in pairs
-        pattern = split(string(key), "_")[end]
+        pattern = split(string(key), "_")[end] # TODO MallocInfo
         if pattern == dimension # TODO partial matching will be good but tie break will happen
             dimension = T(value)
         end
@@ -1206,7 +1206,7 @@ function createEntry(::Type{GPUColorAttachments}; args...)
     attachments = WGPURenderPassColorAttachment[]
     attachmentObjs = GPUColorAttachment[]
     for attachment in get(args, :attachments, [])
-        obj = createEntry(attachment.first; attachment.second...)
+        obj = createEntry(attachment.first; attachment.second...) # TODO MallocInfo
         push!(attachmentObjs, obj)
         push!(attachments, obj.internal[])
     end
@@ -1233,7 +1233,7 @@ function createEntry(::Type{GPUDepthStencilAttachments}; args...)
     attachments = WGPURenderPassDepthStencilAttachment[]
     attachmentObjs = GPUDepthStencilAttachment[]
     for attachment in get(args, :attachments, [])
-        obj = createEntry(attachment.first; attachment.second...)
+        obj = createEntry(attachment.first; attachment.second...) # TODO MallocInfo
         push!(attachmentObjs, obj)
         push!(attachments, obj.internal[])
     end
@@ -1303,7 +1303,7 @@ function beginRenderPass(
     renderPipelinePairs;
     label = " BEGIN RENDER PASS ",
 )
-    renderArgs = Dict()
+    renderArgs = Dict() # MallocInfo
     for config in renderPipelinePairs[]
         renderArgs[config.first] = createEntry(config.first; config.second...)
     end

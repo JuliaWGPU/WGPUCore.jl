@@ -2,6 +2,7 @@
 using WGPUNative
 using CEnum
 using CEnum: Cenum
+
 ## default inits for non primitive types
 weakRefs = WeakKeyDict() # |> lock
 
@@ -11,28 +12,37 @@ function setDebugMode(mode)
     global DEBUG
     DEBUG = mode
 end
+
 ## Set Log callbacks
 function getEnum(::Type{T}, query::String) where {T<:Cenum}
-    pairs = CEnum.name_value_pairs(T)
-    for (key, value) in pairs
-        pattern = split(string(key), "_")[end]
-        if pattern == query # TODO partial matching will be good but tie break will happen
-            return T(value)
-        end
-    end
+	get!(task_local_storage(), (T, query)) do
+		begin
+		    pairs = CEnum.name_value_pairs(T)
+		    for (key, value) in pairs
+		        pattern = split(string(key), "_")[end]
+		        if pattern == query # TODO partial matching will be good but tie break will happen
+		            return T(value)
+		        end
+		    end
+		end
+	end
 end
 
 function getEnum(::Type{T}, partials::Vector{String}) where {T<:Cenum}
-    t = WGPUCore.defaultInit(T)
-    for partial in partials
-        e = getEnum(T, partial)
-        if e != nothing
-            t |= e
-        else
-            @error "$partial is not a member of $T"
-        end
-    end
-    return T(t)
+	get!(task_local_storage(), tuple(partials...)) do
+		begin
+		    t = WGPUCore.defaultInit(T)
+		    for partial in partials
+		        e = getEnum(T, partial)
+		        if e != nothing
+		            t |= e
+		        else
+		            @error "$partial is not a member of $T"
+		        end
+		    end
+		    return T(t)
+		end
+	end
 end
 
 function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
@@ -49,7 +59,7 @@ function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
     else
         level_str = "UNKNOWN LOG LEVEL"
     end
-    println("$(level_str) $(unsafe_string(msg))")
+    println("$(level_str) $(unsafe_string(msg))") # TODO MallocInfo
 end
 
 function SetLogLevel(loglevel::WGPULogLevel)
@@ -130,28 +140,28 @@ function Base.unsafe_convert(::Type{Ptr{T}}, w::Base.RefValue{WGPURef{T}}) where
 end
 
 function partialInit(target::Type{T}; fields...) where {T}
-    ins = []
-    others = []
+    ins = []	# TODO MallocInfo
+    others = [] # TODO MallocInfo
     inPairs = pairs(fields)
     for field in fieldnames(T)
         if field in keys(inPairs)
-            push!(ins, inPairs[field])
+            push!(ins, inPairs[field]) # TODO MallocInfo 
         else
-            push!(ins, defaultInit(fieldtype(T, field)))
+            push!(ins, defaultInit(fieldtype(T, field))) # TODO MallocInfo
         end
     end
     for field in keys(inPairs)
-        if startswith(string(field), "xref")
+        if startswith(string(field), "xref") # TODO MallocInfo
             push!(others, inPairs[field])
         end
     end
-    t = T(ins...)
-    r = WGPURef(t)
+    t = T(ins...)  # TODO MallocInfo
+    r = WGPURef(t) # TODO MallocInfo
     f(x) = begin
         # @warn "Finalizing WGPURef $x"
         x = nothing
     end
-    weakRefs[r] = [r, (ins .|> Ref)..., (others .|> Ref)...]
+    weakRefs[r] = [r, (ins .|> Ref)..., (others .|> Ref)...] # TODO MallocInfo
     finalizer(f, r)
     return r
 end
