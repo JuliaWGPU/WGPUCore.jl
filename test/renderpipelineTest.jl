@@ -38,7 +38,7 @@ shaderSource =
         """,
     ) |> Ref
 
-canvas = WGPUCore.defaultInit(WGPUCore.WGPUCanvas);
+canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
 shadercode = WGPUCore.loadWGSL(shaderSource[]) |> first;
 cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing);
@@ -46,7 +46,7 @@ cshaderRef = cshader |> Ref
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPUCore.makeEntryList(bindingLayouts))
+cBindingLayoutsList = Ref(WGPUCore.makeLayoutEntryList(bindingLayouts))
 cBindingsList = Ref(WGPUCore.makeBindGroupEntryList(bindings))
 bindGroupLayout =
     WGPUCore.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
@@ -58,7 +58,7 @@ else
     bindGroupLayouts = map((x) -> x.internal[], [bindGroupLayout])
 end
 
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayout)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 
 
@@ -207,7 +207,3 @@ Test.@testset "RenderPipeline" begin
 end
 
 # renderPipeline = nothing
-
-GC.gc(true)
-
-GLFW.DestroyWindow(canvas.windowRef[])

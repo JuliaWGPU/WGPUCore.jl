@@ -1,5 +1,5 @@
 # GC.gc()
-using WGPU
+using WGPUCore
 using Test
 
 vertexStateOptions = [
@@ -35,10 +35,14 @@ vertexAttrib2 = WGPUCore.createEntry(
     shaderLocation = 1,
 )
 
+GC.gc()
+
 vertexState = WGPUCore.createEntry(WGPUCore.GPUVertexState; vertexStateOptions...)
 
 vsInternal = vertexState.internal
 vs = vsInternal[]
+
+GC.gc()
 
 bufs = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
 buf = bufs[1]
@@ -47,6 +51,8 @@ attrs = unsafe_wrap(Vector{WGPUCore.WGPUVertexAttribute}, buf.attributes, buf.at
 
 attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
+
+GC.gc()
 
 Test.@testset "BufferLayoutTest" begin
     Test.@test buf.attributeCount == 2

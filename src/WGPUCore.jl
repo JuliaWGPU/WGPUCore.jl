@@ -1033,25 +1033,22 @@ mutable struct GPUColorTargetState
 end
 
 function createEntry(::Type{GPUColorTargetState}; args...)
+    kargs = Dict(args)
     colorEntry = createEntry(GPUBlendComponent; args[:color]...)
     alphaEntry = createEntry(GPUBlendComponent; args[:alpha]...)
     blendArgs = [:color => colorEntry.internal[], :alpha => alphaEntry.internal[]]
     blend = createEntry(GPUBlendState; blendArgs...)
-    kargs = Dict(args)
     kargs[:writeMask] = get(kargs, :writeMask, WGPUColorWriteMask_All)
-    blendInternal = blend.internal
-    aref = GC.@preserve blendInternal partialInit(
+    blendInternalPtr = (blend.internal) |> pointer_from_objref
+    aref = GC.@preserve args blendInternalPtr partialInit(
         WGPUColorTargetState;
-        format = args[:format],
-        blend = blend.internal |> pointer_from_objref,
+        format = kargs[:format],
+        blend = blendInternalPtr,
         writeMask = kargs[:writeMask],
-        xref1 = colorEntry,
-        xref2 = alphaEntry,
-        xref3 = blend,
     )
     return GPUColorTargetState(
         aref[] |> Ref,
-        (blend, blend.internal, colorEntry, alphaEntry, args) .|> Ref,
+        (blend, blend.internal, colorEntry, alphaEntry, args, kargs) .|> Ref,
     )
 end
 
@@ -2000,7 +1997,7 @@ end
 
 # TODO 
 function isdestroyable()
-
+	
 end
 
 end

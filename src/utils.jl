@@ -63,8 +63,9 @@ function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
 end
 
 function SetLogLevel(loglevel::WGPULogLevel)
-    logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
-    wgpuSetLogCallback(logcallback)
+	# Commenting them for now TODO verify the link to MallocInfo
+    # logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
+    # wgpuSetLogCallback(logcallback)
     @info "Setting Log level : $loglevel"
     wgpuSetLogLevel(loglevel)
 end
@@ -82,13 +83,13 @@ defaultInit(::Type{T}) where {T} = begin
         t = T(ins...)
         r = WGPURef(t)
         f(x) = begin
-            global DEBUG
-            if DEBUG == true
+            # global DEBUG
+            # if DEBUG == true
                 # @warn "Finalizing WGPURef $x"
-            end
+            # end
             x = nothing
         end
-        weakRefs[r] = [r, ins...]
+        weakRefs[r] = (t, (ins .|> Ref)... )
         finalizer(f, r)
         return r
     end
@@ -161,7 +162,7 @@ function partialInit(target::Type{T}; fields...) where {T}
         # @warn "Finalizing WGPURef $x"
         x = nothing
     end
-    weakRefs[r] = [r, (ins .|> Ref)..., (others .|> Ref)...] # TODO MallocInfo
+    weakRefs[r] = (t, (ins .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
     finalizer(f, r)
     return r
 end

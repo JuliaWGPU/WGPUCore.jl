@@ -1,6 +1,6 @@
 GC.gc(true)
 
-using WGPU
+using WGPUCore
 using Test
 
 vertexStateOptions = [

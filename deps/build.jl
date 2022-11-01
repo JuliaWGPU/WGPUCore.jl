@@ -1,6 +1,6 @@
 using GLFW_jll
 using GLFW
-using Artifacts
+using Pkg.Artifacts
 
 glfwpath = pkgdir(GLFW_jll)
 artifact_toml = joinpath(glfwpath, "Artifacts.toml")

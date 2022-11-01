@@ -1,5 +1,5 @@
 ## Load WGPU
-using WGPU
+using WGPUCore
 using Test
 using WGPUNative
 using GLFW
