@@ -24,7 +24,7 @@ shaderSource = Vector{UInt8}("""
                                  @builtin(position) pos: vec4<f32>,
                              };
 
-                             @stage(vertex)
+                             @vertex
                              fn vs_main(in: VertexInput) -> VertexOutput {
                                  let ndc: vec4<f32> = r_locals.transform * in.pos;
                                  var out: VertexOutput;
@@ -39,7 +39,7 @@ shaderSource = Vector{UInt8}("""
                              @group(0) @binding(2)
                              var r_sampler: sampler;
 
-                             @stage(fragment)
+                             @fragment
                              fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                                  let value = textureSample(r_tex, r_sampler, in.texcoord).r;
                                  return vec4<f32>(value, value, value, 1.0);
@@ -50,7 +50,8 @@ canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()
 shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing);
+cshaderRef = cshader |> Ref;
 
 flatten(x) = reshape(x, (:,))
 
@@ -206,7 +207,7 @@ WGPUCore.config(presentContext, device = gpuDevice, format = renderTextureFormat
 
 renderpipelineOptions = [
     WGPUCore.GPUVertexState => [
-        :_module => cshader[],
+        :_module => cshaderRef[],
         :entryPoint => "vs_main",
         :buffers => [
             WGPUCore.GPUVertexBufferLayout => [
@@ -237,7 +238,7 @@ renderpipelineOptions = [
     WGPUCore.GPUMultiSampleState =>
         [:count => 1, :mask => typemax(UInt32), :alphaToCoverageEnabled => false],
     WGPUCore.GPUFragmentState => [
-        :_module => cshader[],
+        :_module => cshaderRef[],
         :entryPoint => "fs_main",
         :targets => [
             WGPUCore.GPUColorTargetState => [
@@ -253,79 +254,79 @@ renderPipeline =
     WGPUCore.createRenderPipeline(gpuDevice, pipelineLayout, renderpipelineOptions; label = " ")
 
 
-prevTime = time()
-try
-    while !GLFW.WindowShouldClose(canvas.windowRef[])
-        a1 = 0.3f0
-        a2 = time()
-        s = 0.6f0
-        ortho = s .* Matrix{Float32}(I, (3, 3))
-        rotxy = RotXY(a1, a2)
-        uniformData[1:3, 1:3] .= rotxy * ortho
-
-        (tmpBuffer, _) =
-            WGPUCore.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
-        currentTextureView = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
-        cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "CMD ENCODER")
-        WGPUCore.copyBufferToBuffer(
-            cmdEncoder,
-            tmpBuffer,
-            0,
-            uniformBuffer,
-            0,
-            sizeof(uniformData),
-        )
-
-        renderPassOptions = [
-            WGPUCore.GPUColorAttachments => [
-                :attachments => [
-                    WGPUCore.GPUColorAttachment => [
-                        :view => currentTextureView[],
-                        :resolveTarget => C_NULL,
-                        :clearValue => (
-                            abs(0.8f0 * sin(a2)),
-                            abs(0.8f0 * cos(a2)),
-                            0.3f0,
-                            1.0f0,
-                        ),
-                        :loadOp => WGPULoadOp_Clear,
-                        :storeOp => WGPUStoreOp_Store,
-                    ],
-                ],
-            ],
-            WGPUCore.GPUDepthStencilAttachments => [],
-        ]
-
-        renderPass = WGPUCore.beginRenderPass(
-            cmdEncoder,
-            renderPassOptions |> Ref;
-            label = "BEGIN RENDER PASS",
-        )
-
-        WGPUCore.setPipeline(renderPass, renderPipeline)
-        WGPUCore.setIndexBuffer(renderPass, indexBuffer, "Uint32")
-        WGPUCore.setVertexBuffer(renderPass, 0, vertexBuffer)
-        WGPUCore.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
-        WGPUCore.drawIndexed(
-            renderPass,
-            Int32(indexBuffer.size / sizeof(UInt32));
-            instanceCount = 1,
-            firstIndex = 0,
-            baseVertex = 0,
-            firstInstance = 0,
-        )
-        WGPUCore.endEncoder(renderPass)
-        WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
-        WGPUCore.present(presentContext[])
-        GLFW.PollEvents()
-        # dataDown = reinterpret(Float32, WGPUCore.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
-        # @info sum(dataDown .== vertexData |> flatten)
-        # @info dataDown
-        # println("FPS : $(1/(a2 - prevTime))")
-        # WGPUCore.destroy(tmpBuffer)
-        # WGPUCore.destroy(currentTextureView[])
-        prevTime = a2
-    end
-finally
-    GLFW.DestroyWindow(canvas.windowRef[])
-end
+# prevTime = time()
+# try
+    # while !GLFW.WindowShouldClose(canvas.windowRef[])
+        # a1 = 0.3f0
+        # a2 = time()
+        # s = 0.6f0
+        # ortho = s .* Matrix{Float32}(I, (3, 3))
+        # rotxy = RotXY(a1, a2)
+        # uniformData[1:3, 1:3] .= rotxy * ortho
+# 
+        # (tmpBuffer, _) =
+            # WGPUCore.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
+        # currentTextureView = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        # cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "CMD ENCODER")
+        # WGPUCore.copyBufferToBuffer(
+            # cmdEncoder,
+            # tmpBuffer,
+            # 0,
+            # uniformBuffer,
+            # 0,
+            # sizeof(uniformData),
+        # )
+# 
+        # renderPassOptions = [
+            # WGPUCore.GPUColorAttachments => [
+                # :attachments => [
+                    # WGPUCore.GPUColorAttachment => [
+                        # :view => currentTextureView[],
+                        # :resolveTarget => C_NULL,
+                        # :clearValue => (
+                            # abs(0.8f0 * sin(a2)),
+                            # abs(0.8f0 * cos(a2)),
+                            # 0.3f0,
+                            # 1.0f0,
+                        # ),
+                        # :loadOp => WGPULoadOp_Clear,
+                        # :storeOp => WGPUStoreOp_Store,
+                    # ],
+                # ],
+            # ],
+            # WGPUCore.GPUDepthStencilAttachments => [],
+        # ]
+# 
+        # renderPass = WGPUCore.beginRenderPass(
+            # cmdEncoder,
+            # renderPassOptions |> Ref;
+            # label = "BEGIN RENDER PASS",
+        # )
+# 
+        # WGPUCore.setPipeline(renderPass, renderPipeline)
+        # WGPUCore.setIndexBuffer(renderPass, indexBuffer, "Uint32")
+        # WGPUCore.setVertexBuffer(renderPass, 0, vertexBuffer)
+        # WGPUCore.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
+        # WGPUCore.drawIndexed(
+            # renderPass,
+            # Int32(indexBuffer.size / sizeof(UInt32));
+            # instanceCount = 1,
+            # firstIndex = 0,
+            # baseVertex = 0,
+            # firstInstance = 0,
+        # )
+        # WGPUCore.endEncoder(renderPass)
+        # WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
+        # WGPUCore.present(presentContext[])
+        # GLFW.PollEvents()
+        # # dataDown = reinterpret(Float32, WGPUCore.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
+        # # @info sum(dataDown .== vertexData |> flatten)
+        # # @info dataDown
+        # # println("FPS : $(1/(a2 - prevTime))")
+        # # WGPUCore.destroy(tmpBuffer)
+        # # WGPUCore.destroy(currentTextureView[])
+        # prevTime = a2
+    # end
+# finally
+    # GLFW.DestroyWindow(canvas.windowRef[])
+# end

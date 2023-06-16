@@ -12,7 +12,7 @@ src = """
       @group(0) @binding(1)
       var<storage, read_write> data2: array<i32>;
 
-      @stage(compute)
+      @compute
       @workgroup_size(1)
       fn main(@builtin(global_invocation_id) index: vec3<u32>) {
       	let i: u32 = index.x;
@@ -59,7 +59,7 @@ bindings = [
 
 (bindGroupLayouts, bindGroup) =
     WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-
+# 
 pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 computeStage = WGPUCore.createComputeStage(cshader[], "main")
 computePipeline =
@@ -67,10 +67,11 @@ computePipeline =
 
 commandEncoder = WGPUCore.createCommandEncoder(gpuDevice, "Command Encoder")
 computePass = WGPUCore.beginComputePass(commandEncoder)
-# 
+
 WGPUCore.setPipeline(computePass, computePipeline)
 WGPUCore.setBindGroup(computePass, 0, bindGroup, UInt32[], 0, 99999)
 WGPUCore.dispatchWorkGroups(computePass, n, 1, 1)
 WGPUCore.endComputePass(computePass)
 WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(commandEncoder)])
+# 
 WGPUCore.readBuffer(gpuDevice, buffer2, 0, sizeof(data))

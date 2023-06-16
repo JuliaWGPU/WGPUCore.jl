@@ -19,7 +19,7 @@ shaderSource =
             @builtin(position) pos: vec4<f32>,
         };
 
-        @stage(vertex)
+        @vertex
         fn vs_main(in: VertexInput) -> VertexOutput {
             var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -0.5), vec2<f32>(0.5, 0.5), vec2<f32>(-0.5, 0.7));
             let index = i32(in.vertex_index);
@@ -31,16 +31,15 @@ shaderSource =
             return out;
         }
 
-        @stage(fragment)
+        @fragment
         fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return in.color;
         }
         """,
-    ) |> Ref
-
+    )
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource[]) |> first;
+shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
 cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing);
 cshaderRef = cshader |> Ref
 
@@ -128,7 +127,7 @@ function createRenderPipeline(
     pipelineDesc =
         WGPUCore.partialInit(
             WGPUCore.WGPURenderPipelineDescriptor;
-            label = pointer(label),
+            label = toCString(label),
             layout = pipelinelayout.internal[],
             vertex = vertexState[],
             primitive = primitiveState[],
@@ -177,7 +176,7 @@ vertexAttrib2 = WGPUCore.createEntry(
 
 Test.@testset "RenderPipeline" begin
     renderFragment = renderPipeline[WGPUCore.GPUFragmentState]
-    fs = unsafe_load(convert(Ptr{WGPUCore.WGPUFragmentState}, renderFragment.internal[]))
+    fs = unsafe_load(renderFragment.internal[] |> ptr)
     Test.@test unsafe_string(fs.entryPoint) == "fs_main"
 
     fsColorTarget = unsafe_load(fs.targets)
@@ -200,9 +199,9 @@ Test.@testset "RenderPipeline" begin
     buf1 = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
     # check if buffers is alive
     Test.@test vs.buffers != C_NULL
-    Test.@test attr1 == vertexAttrib1.internal[]
+    Test.@test attr1 == vertexAttrib1.internal |> concrete
     Test.@test attrs == [attr1, attr2]
-    Test.@test attr2 == vertexAttrib2.internal[]
+    Test.@test attr2 == vertexAttrib2.internal |> concrete
 
 end
 
