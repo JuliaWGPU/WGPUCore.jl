@@ -78,7 +78,7 @@ function mapRead(gpuBuffer::GPUBuffer)
     buffercallback =
         @cfunction(bufferCallback, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
     # Prepare
-    data = reinterpret(Ptr{UInt8}, Libc.malloc(bufferSize))
+    data = convert(Ptr{UInt8}, Libc.malloc(bufferSize))
     wgpuBufferMapAsync(
         gpuBuffer.internal[],
         WGPUMapMode_Read,
@@ -284,7 +284,7 @@ function requestDevice(
         cStruct(
             WGPUDeviceDescriptor;
             label = toCString(label),
-            nextInChain = reinterpret(Ptr{WGPUChainedStruct}, deviceExtras |> ptr),
+            nextInChain = convert(Ptr{WGPUChainedStruct}, deviceExtras |> ptr),
             requiredFeaturesCount = 0,
             requiredLimits = (wgpuRequiredLimits |> ptr),
             defaultQueue = wgpuQueueDescriptor |> ptr |> unsafe_load,
@@ -535,6 +535,7 @@ mutable struct GPUBindGroupLayout
     internal::Any
     device::Any
     bindings::Any
+    desc::Any
 end
 
 abstract type WGPUEntryType end
@@ -551,30 +552,34 @@ function createLayoutEntry(::Type{WGPUBufferEntry}; args...)
     # binding::Int,
     # visibility::Int,
     # buffertype::WGPUBufferBindingType)
-    cStruct(
+    bufferBindingLayout = cStruct(
+        WGPUBufferBindingLayout;
+        type = getEnum(WGPUBufferBindingType, args[:type]),
+    )
+    entry =cStruct(
         WGPUBindGroupLayoutEntry;
         binding = args[:binding],
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
-        buffer = cStruct(
-            WGPUBufferBindingLayout;
-            type = getEnum(WGPUBufferBindingType, args[:type]),
-        ) |> concrete,
-    ) |> concrete
+        buffer = bufferBindingLayout |> concrete,
+    )
+    return (entry, bufferBindingLayout)
 end
 
 function createLayoutEntry(::Type{WGPUSamplerEntry}; args...)
     # binding::Int,
     # visibility::Int,
     # sampertype::WGPUBufferBindingType
-    cStruct(
+    samplerBindingLayout = cStruct(
+        WGPUSamplerBindingLayout;
+        type = getEnum(WGPUSamplerBindingType, args[:type]),
+    )
+    entry = cStruct(
         WGPUBindGroupLayoutEntry;
         binding = args[:binding],
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
-        sampler = cStruct(
-            WGPUSamplerBindingLayout;
-            type = getEnum(WGPUSamplerBindingType, args[:type]),
-        ) |> concrete,
-    ) |> concrete
+        sampler = samplerBindingLayout |> concrete,
+    )
+    return (entry, samplerBindingLayout)
 end
 
 function createLayoutEntry(::Type{WGPUTextureEntry}; args...)
@@ -583,17 +588,19 @@ function createLayoutEntry(::Type{WGPUTextureEntry}; args...)
     # type::WGPUTextureSampleType = WGPUTextureSampleType_Float,
     # viewDimension::WGPUTextureViewDimension = WGPUTextureViewDimension_2D,
     # multisampled::Bool=false
-    cStruct(
+	textureBindingLayout = cStruct(
+        WGPUTextureBindingLayout;
+        sampleType = getEnum(WGPUTextureSampleType, args[:sampleType]),
+        viewDimension = getEnum(WGPUTextureViewDimension, args[:viewDimension]),
+        multisampled = args[:multisampled],
+    )
+    entry = cStruct(
         WGPUBindGroupLayoutEntry;
         binding = args[:binding],
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
-        texture = cStruct(
-            WGPUTextureBindingLayout;
-            sampleType = getEnum(WGPUTextureSampleType, args[:sampleType]),
-            viewDimension = getEnum(WGPUTextureViewDimension, args[:viewDimension]),
-            multisampled = args[:multisampled],
-        ) |> concrete,
-    ) |> concrete
+        texture = textureBindingLayout |> concrete,
+    )
+    return (entry, textureBindingLayout)
 end
 
 function createLayoutEntry(::Type{WGPUStorageTextureEntry}; args...)
@@ -602,17 +609,20 @@ function createLayoutEntry(::Type{WGPUStorageTextureEntry}; args...)
     # access::WGPUStorageTextureAccess,
     # format::WGPUTextureFormat;
     # viewDimension::WGPUTextureViewDimension=WGPUTextureViewDimension_2D
-    cStruct(
+    storageTextureBindingLayout = cStruct(
+        WGPUStorageTextureBindingLayout;
+        access = getEnum(WGPUStorageTextureAccess, args[:access]),
+        viewDimension = getEnum(WGPUTextureViewDimension, args[:viewDimension]),
+        format = getEnum(WGPUTextureFormat, args[:format]),
+    ),
+
+    entry = cStruct(
         WGPUBindGroupLayoutEntry;
         binding = args[:binding],
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
-        storageTexture = cStruct(
-            WGPUStorageTextureBindingLayout;
-            access = getEnum(WGPUStorageTextureAccess, args[:access]),
-            viewDimension = getEnum(WGPUTextureViewDimension, args[:viewDimension]),
-            format = getEnum(WGPUTextureFormat, args[:format]),
-        ) |> concrete,
-    ) |> concrete
+        storageTexture = storageTextureBindingLayout |> concrete
+    )
+    return (entry, storageTextureBindingLayout)
 end
 
 function createBindGroupEntry(::Type{GPUBuffer}; args...)
@@ -624,7 +634,7 @@ function createBindGroupEntry(::Type{GPUBuffer}; args...)
         size = args[:size],
         sampler = C_NULL,
         textureView = C_NULL,
-    ) |> concrete
+    )
 end
 
 function createBindGroupEntry(::Type{GPUTextureView}; args...)
@@ -632,7 +642,7 @@ function createBindGroupEntry(::Type{GPUTextureView}; args...)
         WGPUBindGroupEntry;
         binding = args[:binding],
         textureView = args[:textureView].internal[],
-    ) |> concrete
+    )
 end
 
 function createBindGroupEntry(::Type{GPUSampler}; args...)
@@ -640,36 +650,44 @@ function createBindGroupEntry(::Type{GPUSampler}; args...)
         WGPUBindGroupEntry;
         binding = args[:binding],
         sampler = args[:sampler].internal[],
-    ) |> concrete
+    )
 end
 
 function makeLayoutEntryList(entries)
     @assert typeof(entries) <: Array "Entries should be an array"
-    cEntries = WGPUBindGroupLayoutEntry[]
-    if length(entries) > 0
-        for entry in entries
-            push!(cEntries, createLayoutEntry(entry.first; entry.second...))
+    entryLen = length(entries)
+    cEntries = convert(
+    	Ptr{WGPUBindGroupLayoutEntry},
+    	Libc.malloc(sizeof(WGPUBindGroupLayoutEntry)*entryLen)
+   	)
+    if entryLen > 0
+        for (idx, entry) in enumerate(entries)
+        	entryCntxt = createLayoutEntry(entry.first; entry.second...)
+            unsafe_store!(cEntries, entryCntxt |> first |> concrete, idx)
         end
     end
-    return cEntries
+    return unsafe_wrap(Array, cEntries, entryLen; own=false)
 end
 
 function createBindGroupLayout(gpuDevice, label, entries)
     @assert typeof(entries) <: Array "Entries should be an array"
     count = length(entries)
     bindGroupLayout = C_NULL
+    bindGroupLayoutDesc = nothing
     if count > 0
+		bindGroupLayoutDesc = cStruct(
+	       WGPUBindGroupLayoutDescriptor;
+	       label = toCString(label),
+	       entries = count == 0 ? C_NULL : entries |> pointer, # assuming array of entries
+	       entryCount = count,
+	   	)
+
         bindGroupLayout = GC.@preserve label wgpuDeviceCreateBindGroupLayout(
             gpuDevice.internal[],
-            cStruct(
-                WGPUBindGroupLayoutDescriptor;
-                label = toCString(label),
-                entries = count == 0 ? C_NULL : pointer(entries), # assuming array of entries
-                entryCount = count,
-            ) |> ptr,
+		 	bindGroupLayoutDesc |> ptr,
         )
     end
-    GPUBindGroupLayout(label, Ref(bindGroupLayout), gpuDevice, entries)
+    GPUBindGroupLayout(label, Ref(bindGroupLayout), gpuDevice, entries, bindGroupLayoutDesc)
 end
 
 mutable struct GPUBindGroup
@@ -678,45 +696,53 @@ mutable struct GPUBindGroup
     layout::Any
     device::Any
     bindings::Any
+    desc::Any
 end
 
 function makeBindGroupEntryList(entries)
     @assert typeof(entries) <: Array "Entries should be an array"
-    cEntries = WGPUBindGroupEntry[]
-    if length(entries) > 0
-        for entry in entries
-            push!(cEntries, createBindGroupEntry(entry.first; entry.second...))
+    entriesLen = length(entries)
+    cEntries = convert(
+    	Ptr{WGPUBindGroupEntry},
+    	Libc.malloc(sizeof(WGPUBindGroupEntry)*entriesLen)
+    )
+    if entriesLen > 0
+        for (idx, entry) in enumerate(entries)
+        	entryCntxt = createBindGroupEntry(entry.first; entry.second...)
+            unsafe_store!(cEntries, entryCntxt |> concrete, idx)
         end
     end
-    return cEntries
+    return unsafe_wrap(Array, cEntries, entriesLen; own=false)
 end
 
 function createBindGroup(label, gpuDevice, bindingLayout, entries)
     @assert typeof(entries) <: Array "Entries should be an array"
     count = length(entries)
     bindGroup = C_NULL
+    bindGroupDesc = nothing
     if bindingLayout.internal[] != C_NULL && count > 0
+        bindGroupDesc = cStruct(
+	        WGPUBindGroupDescriptor;
+	        label = toCString(label),
+	        layout = bindingLayout.internal[],
+	        entries = count == 0 ? C_NULL : entries |> pointer,
+	        entryCount = count,
+	    )
         bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
             gpuDevice.internal[],
-            cStruct(
-                WGPUBindGroupDescriptor;
-                label = toCString(label),
-                layout = bindingLayout.internal[],
-                entries = count == 0 ? C_NULL : pointer(entries),
-                entryCount = count,
-            ) |> ptr,
+			bindGroupDesc |> ptr
         )
     end
-    GPUBindGroup(label, Ref(bindGroup), bindingLayout, gpuDevice, entries)
+    GPUBindGroup(label, Ref(bindGroup), bindingLayout, gpuDevice, entries, bindGroupDesc)
 end
 
 function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
     @assert length(bindings) == length(bindingLayouts)
-    cBindingLayoutsList = Ref(makeLayoutEntryList(bindingLayouts))
-    cBindingsList = Ref(makeBindGroupEntryList(bindings))
+    cBindingLayoutsList = makeLayoutEntryList(bindingLayouts)
+    cBindingsList = makeBindGroupEntryList(bindings)
     bindGroupLayout =
-        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
+        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList)
+    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList)
     return (bindGroupLayout, bindGroup)
 end
 
@@ -729,19 +755,28 @@ mutable struct GPUPipelineLayout
 end
 
 function createPipelineLayout(gpuDevice, label, bindGroupLayoutObj)
+    # bindGroupLayoutArray = Ptr{WGPUBindGroupLayoutImpl}()
+    # if bindGroupLayoutObj.internal[] != C_NULL
+        # bindGroupLayoutArray = bindGroupLayoutObj.internal[]
+        # layoutCount = length(bindGroupLayoutArray)
+    # else
+    	# layoutCount = 0
+    # end
     bindGroupLayoutArray = []
     if bindGroupLayoutObj.internal[] != C_NULL
         bindGroupLayoutArray = map((x) -> x.internal[], [bindGroupLayoutObj])
-    end
-    layoutCount = length(bindGroupLayoutArray)
-    pipelineDescriptor = GC.@preserve bindGroupLayoutObj label cStruct(
+        layoutCount = length(bindGroupLayoutArray) # will always be one
+    else
+    	layoutCount = 0
+    end 
+    pipelineDescriptor = GC.@preserve bindGroupLayoutArray label cStruct(
         WGPUPipelineLayoutDescriptor;
         label = toCString(label),
-        bindGroupLayouts = (layoutCount == 0) ? C_NULL : pointer(bindGroupLayoutArray),
+        bindGroupLayouts = layoutCount == 0 ? C_NULL : bindGroupLayoutArray |> pointer,
         bindGroupLayoutCount = layoutCount,
-    ) |> ptr
+    )
     pipelineLayout =
-        wgpuDeviceCreatePipelineLayout(gpuDevice.internal[], pipelineDescriptor) |> Ref
+        wgpuDeviceCreatePipelineLayout(gpuDevice.internal[], pipelineDescriptor |> ptr) |> Ref
     GPUPipelineLayout(
         label,
         pipelineLayout,
@@ -773,7 +808,7 @@ function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
         nextInChain = wgslDescriptor |> ptr ,
         label = toCString(name),
     )
-    return (a, chain, wgslDescriptor, names)
+    return (a, buffer, chain, wgslDescriptor, names)
 end
 
 function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
@@ -793,7 +828,7 @@ function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
         nextInChain = wgslDescriptor |> ptr,
         label = toCString(name),
     )
-    return (a, chain, wgslDescriptor, names)
+    return (a, b, chain, wgslDescriptor, names)
 end
 
 function loadWGSL(file::IOStream; name = " UnknownShader ")
@@ -813,7 +848,7 @@ function loadWGSL(file::IOStream; name = " UnknownShader ")
         nextInChain = wgslDescriptor |> ptr,
         label = toCString(name == "UnknownShader" ? file.name : name),
     )
-    return (a, chain, wgslDescriptor, name)
+    return (a, b, chain, wgslDescriptor, name)
 end
 
 function createShaderModule(gpuDevice, label, shadercode, sourceMap, hints)
@@ -830,6 +865,7 @@ mutable struct GPUComputePipeline
     internal::Any
     device::Any
     layout::Any
+    desc::Any
 end
 
 mutable struct ComputeStage
@@ -847,16 +883,17 @@ function createComputeStage(shaderModule, entryPoint::String)
 end
 
 function createComputePipeline(gpuDevice, label, pipelinelayout, computeStage)
+	desc =	cStruct(
+        WGPUComputePipelineDescriptor;
+        label = toCString(label),
+        layout = pipelinelayout.internal[],
+        compute = computeStage.internal |> concrete,
+    )
     computepipeline = GC.@preserve label wgpuDeviceCreateComputePipeline(
         gpuDevice.internal[],
-        cStruct(
-            WGPUComputePipelineDescriptor;
-            label = toCString(label),
-            layout = pipelinelayout.internal[],
-            compute = computeStage.internal |> concrete,
-        ) |> ptr,
+        desc |> ptr,
     ) |> Ref
-    GPUComputePipeline(label, computepipeline, gpuDevice, pipelinelayout)
+    GPUComputePipeline(label, computepipeline, gpuDevice, pipelinelayout, desc)
 end
 
 mutable struct GPUVertexAttribute
@@ -884,7 +921,8 @@ end
 function createEntry(::Type{GPUVertexBufferLayout}; args...)
     attributeArgs = args[:attributes]
 	numAttrs = length(attributeArgs)
-    attributeArrayPtr = reinterpret(Ptr{WGPUVertexAttribute},
+    attributeArrayPtr = convert(
+    	Ptr{WGPUVertexAttribute},
     	Libc.malloc(sizeof(WGPUVertexAttribute)*numAttrs)
     )
     attributeObjs = GPUVertexAttribute[]
@@ -915,7 +953,8 @@ function createEntry(::Type{GPUVertexState}; args...)
     buffers = args[:buffers]
 	bufferLen = length(buffers)
 	
-    bufferDescArrayPtr = reinterpret(Ptr{WGPUVertexBufferLayout},
+    bufferDescArrayPtr = convert(
+    	Ptr{WGPUVertexBufferLayout},
     	Libc.malloc(sizeof(WGPUVertexBufferLayout)*bufferLen)
     )
     
@@ -1056,10 +1095,10 @@ function createEntry(::Type{GPUColorTargetState}; args...)
         format = kargs[:format],
         blend = blend |> ptr,
         writeMask = kargs[:writeMask],
-    )
+    ) |> Ref
     return GPUColorTargetState(
-        aref |> Ref,
-        (blend, blend, colorEntry, alphaEntry, args, kargs) .|> Ref,
+        aref,
+        (blend, blend, colorEntry, alphaEntry, args, kargs),
     )
 end
 
@@ -1070,15 +1109,19 @@ end
 
 function createEntry(::Type{GPUFragmentState}; args...)
     targetsArg = args[:targets]
-    ctargets = WGPUColorTargetState[]
+    targetsLen = length(targetsArg)
+    ctargets = convert(
+    	Ptr{WGPUColorTargetState},
+    	Libc.malloc(sizeof(WGPUColorTargetState)*targetsLen)
+    )
     targetObjs = GPUColorTargetState[]
 
-    for target in targetsArg
+    for (idx, target) in enumerate(targetsArg)
         obj = createEntry(target.first; target.second...)
         push!(targetObjs, obj)
-        push!(ctargets, obj.internal[] |> concrete)
+        unsafe_store!(ctargets, obj.internal[] |> concrete, idx)
     end
-    
+
     entryPointArg = args[:entryPoint]
     shader = args[:_module]
     shaderInternal = shader.internal
@@ -1086,12 +1129,11 @@ function createEntry(::Type{GPUFragmentState}; args...)
         WGPUFragmentState;
         _module = shaderInternal[],
         entryPoint = toCString(entryPointArg),
-        targets = pointer(ctargets),
-        targetCount = length(targetsArg),
+        targets = ctargets,
+        targetCount = targetsLen,
     ) |> Ref
-    aptrRef = aref# |> (x) -> convert(Ptr{WGPUFragmentState}, x) |> Ref
     return GPUFragmentState(
-        aptrRef,
+        aref,
         (
             aref,
             args,
@@ -1102,7 +1144,7 @@ function createEntry(::Type{GPUFragmentState}; args...)
             targetObjs |> Ref,
             entryPointArg,
             shaderInternal,
-        ) .|> Ref,
+        ),
     )
 end
 
@@ -1129,7 +1171,7 @@ function createRenderPipeline(
     renderArgs = Dict()
     for state in renderpipeline
         obj = createEntry(state.first; state.second...)
-        # @info obj
+        @info obj
         renderArgs[state.first] = obj.internal
     end
 
@@ -1238,7 +1280,7 @@ function createEntry(::Type{GPUDepthStencilAttachment}; args...)
         depthStoreOp = args[:depthStoreOp],
         stencilLoadOp = get(args, :stencilLoadOp, WGPULoadOp_Clear),
         stencilStoreOp = get(args, :stencilStoreOp, WGPUStoreOp_Store),
-    )
+    ) |> Ref
     return GPUDepthStencilAttachment(a, (args, depthview) .|> Ref)
 end
 
@@ -1249,7 +1291,7 @@ function createEntry(::Type{GPUDepthStencilAttachments}; args...)
     for attachment in get(args, :attachments, [])
         obj = createEntry(attachment.first; attachment.second...) # TODO MallocInfo
         push!(attachmentObjs, obj)
-        push!(attachments, obj.internal[])
+        push!(attachments, obj.internal[] |> concrete)
     end
     return GPUDepthStencilAttachments(
         attachments |> Ref,

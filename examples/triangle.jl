@@ -4,7 +4,7 @@ using GLFW
 using WGPUNative
 using Images
 
-WGPUCore.SetLogLevel(WGPULogLevel_Debug)
+WGPUCore.SetLogLevel(WGPULogLevel_Off)
 
 shaderSource = Vector{UInt8}(
     """
@@ -86,12 +86,12 @@ renderPipeline = WGPUCore.createRenderPipeline(
     label = "RENDER PIPE LABEL ",
 )
 
-function drawFunction()
-    WGPUCore.draw(renderPass, 3, 1, 0, 0)
-    WGPUCore.end(renderPass)
-end
-
-WGPUCore.attachDrawFunction(canvas, drawFunction)
+# function drawFunction()
+    # WGPUCore.draw(renderPass, 3, 1, 0, 0)
+    # WGPUCore.end(renderPass)
+# end
+# 
+# WGPUCore.attachDrawFunction(canvas, drawFunction)
 
 try
     while !GLFW.WindowShouldClose(canvas.windowRef[])
