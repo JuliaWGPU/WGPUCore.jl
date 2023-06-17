@@ -49,7 +49,6 @@ bindings = []
     WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
-@info swapChainFormat
 presentContext = WGPUCore.getContext(canvas)
 ctxtSize = WGPUCore.determineSize(presentContext[]) .|> Int
 
@@ -96,14 +95,15 @@ WGPUCore.attachDrawFunction(canvas, drawFunction)
 
 try
     while !GLFW.WindowShouldClose(canvas.windowRef[])
-        WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        nextTexture = WGPUCore.getCurrentTexture(presentContext[])
+        nextTextureRef = Ref(nextTexture)
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
         renderPassOptions =
             [
                 WGPUCore.GPUColorAttachments => [
                     :attachments => [
                         WGPUCore.GPUColorAttachment => [
-                            :view => nextTexture[],
+                            :view => nextTextureRef[],
                             :resolveTarget => C_NULL,
                             :clearValue => (0.0, 0.0, 0.0, 1.0),
                             :loadOp => WGPULoadOp_Clear,
