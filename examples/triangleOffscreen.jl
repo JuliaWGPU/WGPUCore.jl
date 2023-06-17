@@ -4,8 +4,9 @@ using GLFW
 
 using WGPUNative
 using Images
+using Debugger 
 
-WGPUCore.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}(
     """
@@ -17,7 +18,7 @@ shaderSource = Vector{UInt8}(
         @builtin(position) pos: vec4<f32>,
     };
 
-    @stage(vertex)
+    @vertex
     fn vs_main(in: VertexInput) -> VertexOutput {
         var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0));
         let index = i32(in.vertex_index);
@@ -29,7 +30,7 @@ shaderSource = Vector{UInt8}(
         return out;
     }
 
-    @stage(fragment)
+    @fragment
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return in.color;
     }
@@ -105,7 +106,7 @@ try
         "OUTPUT BUFFER",
         gpuDevice,
         bufferSize,
-        ["MapRead", "CopyDst", "CopySrc"],
+        [ "CopyDst", "CopySrc"],
         false,
     )
     nextTexture = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
@@ -123,7 +124,7 @@ try
                     ],
                 ],
             ],
-            WGPUCore.DepthStencilAttachments => [],
+            WGPUCore.GPUDepthStencilAttachments => [],
         ] |> Ref
     renderPass =
         WGPUCore.beginRenderPass(cmdEncoder, renderPassOptions; label = "Begin Render Pass")
@@ -143,7 +144,7 @@ try
                 [
                     :offset => 0,
                     :bytesPerRow => bufferDims.padded_bytes_per_row,
-                    :rowsPerImage => 0,
+                    :rowsPerImage => WGPU_COPY_STRIDE_UNDEFINED,
                 ] |> Dict,
         ] |> Dict,
         [
@@ -155,8 +156,8 @@ try
     WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
     WGPUCore.present(presentContext[])
     data = WGPUCore.readBuffer(gpuDevice, outputBuffer, 0, bufferSize |> Int)
-    datareshaped = reshape(data, (4, (ctxtSize |> reverse)...) .|> Int)
-    img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, ctxtSize)
+    datareshaped = reshape(data, (4, ((512, 500) |> reverse)...) .|> Int) #hardcoded
+    img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, (512, 500)) #hardcoded
     save("triangle.png", img |> adjoint)
 finally
     WGPUCore.destroyWindow(canvas)
