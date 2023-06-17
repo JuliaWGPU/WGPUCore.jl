@@ -4,7 +4,7 @@ using GLFW
 using WGPUNative
 using Images
 
-WGPUCore.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}(
     """
@@ -16,7 +16,7 @@ shaderSource = Vector{UInt8}(
         @builtin(position) pos: vec4<f32>,
     };
 
-    @stage(vertex)
+    @vertex
     fn vs_main(in: VertexInput) -> VertexOutput {
         var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0));
         let index = i32(in.vertex_index);
@@ -28,7 +28,7 @@ shaderSource = Vector{UInt8}(
         return out;
     }
 
-    @stage(fragment)
+    @fragment
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return in.color;
     }
@@ -96,7 +96,7 @@ WGPUCore.attachDrawFunction(canvas, drawFunction)
 
 try
     while !GLFW.WindowShouldClose(canvas.windowRef[])
-        nextTexture = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        WGPUCore.getCurrentTexture(presentContext[]) |> Ref
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
         renderPassOptions =
             [
