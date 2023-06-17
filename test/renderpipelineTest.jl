@@ -118,11 +118,11 @@ function createRenderPipeline(
         renderArgs[state.first] = obj
         @info obj
     end
-    vertexState = renderArgs[WGPUCore.GPUVertexState].internal
-    primitiveState = renderArgs[WGPUCore.GPUPrimitiveState].internal
-    depthStencilState = renderArgs[WGPUCore.GPUDepthStencilState].internal
-    multiSampleState = renderArgs[WGPUCore.GPUMultiSampleState].internal
-    fragmentState = renderArgs[WGPUCore.GPUFragmentState].internal
+    vertexState = renderArgs[WGPUCore.GPUVertexState]
+    primitiveState = renderArgs[WGPUCore.GPUPrimitiveState]
+    depthStencilState = renderArgs[WGPUCore.GPUDepthStencilState]
+    multiSampleState = renderArgs[WGPUCore.GPUMultiSampleState]
+    fragmentState = renderArgs[WGPUCore.GPUFragmentState]
     return renderArgs
     pipelineDesc =
         WGPUCore.partialInit(

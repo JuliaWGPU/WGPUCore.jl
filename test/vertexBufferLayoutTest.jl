@@ -38,21 +38,19 @@ vertexAttrib2 = WGPUCore.createEntry(
 # GC.gc()
 
 vertexState = WGPUCore.createEntry(WGPUCore.GPUVertexState; vertexStateOptions...)
-
-vsInternal = vertexState.internal
-vs = vsInternal[]
+vs = vertexState.internal[]
 
 # GC.gc()
 
-bufs = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
-buf = bufs[1]
+# bufs = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
+buf = unsafe_load(vs.buffers, 1)
 
-attrs = unsafe_wrap(Vector{WGPUCore.WGPUVertexAttribute}, buf.attributes, buf.attributeCount)
+attrs = unsafe_wrap(Array, buf.attributes, buf.attributeCount; own=false)
 
 attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
 
-# GC.gc()
+# GC.gc(true)
 
 Test.@testset "BufferLayoutTest" begin
     Test.@test buf.attributeCount == 2
