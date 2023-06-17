@@ -30,7 +30,7 @@ function getPreferredFormat(canvas::OffscreenCanvas)
     return getEnum(WGPUTextureFormat, "RGBA8Unorm")
 end
 
-function defaultInit(::Type{OffscreenCanvas})
+function defaultCanvas(::Type{OffscreenCanvas})
     title = "Offscreen Window"
     canvas = OffscreenCanvas(
         title,

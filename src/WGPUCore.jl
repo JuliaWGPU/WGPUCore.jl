@@ -198,9 +198,9 @@ function requestAdapter(;
         )
 
     adapterOptions =
-        cStructPtr(
+        cStruct(
             WGPURequestAdapterOptions;
-            nextInChain = C_NULL,
+            nextInChain = adapterExtras,
             powerPreference = powerPreference,
             forceFallbackAdapter = false,
         )
@@ -211,15 +211,15 @@ function requestAdapter(;
         (WGPURequestAdapterStatus, WGPUAdapter, Ptr{Cchar}, Ptr{Cvoid})
     )
 
-    if adapter[] != C_NULL
-        tmpAdapter = adapter[]
-        adapter[] = C_NULL
-        destroy(tmpAdapter)
-    end
+    # if adapter[] != C_NULL
+        # tmpAdapter = adapter[]
+        # adapter[] = C_NULL
+        # destroy(tmpAdapter)
+    # end
 
     wgpuInstanceRequestAdapter(
     	getWGPUInstance(), 
-    	adapterOptions, 
+    	adapterOptions |> ptr, 
     	requestAdapterCallback, 
    		adapter[]
 	)
@@ -839,7 +839,7 @@ function createComputeStage(shaderModule, entryPoint::String)
         WGPUProgrammableStageDescriptor;
         _module = shaderModule.internal[],
         entryPoint = toCString(entryPoint),
-    ) |> Ref
+    )
     return ComputeStage(computeStage, entryPoint)
 end
 
@@ -850,7 +850,7 @@ function createComputePipeline(gpuDevice, label, pipelinelayout, computeStage)
             WGPUComputePipelineDescriptor;
             label = toCString(label),
             layout = pipelinelayout.internal[],
-            compute = computeStage.internal[] |> ptr |> unsafe_load,
+            compute = computeStage.internal |> concrete,
         ) |> ptr,
     ) |> Ref
     GPUComputePipeline(label, computepipeline, gpuDevice, pipelinelayout)
@@ -869,7 +869,7 @@ function createEntry(::Type{GPUVertexAttribute}; args...)
             offset = args[:offset],
             shaderLocation = args[:shaderLocation],
         ),
-        nothing,
+        args,
     )
 end
 
@@ -885,8 +885,8 @@ function createEntry(::Type{GPUVertexBufferLayout}; args...)
 
     for attribute in attributeArgs
         obj = createEntry(GPUVertexAttribute; attribute.second...)
-        push!(attributeArray, obj.internal |> concrete)
         push!(attributeObjs, obj)
+        push!(attributeArray, obj.internal |> concrete)
     end
 
     aref = GC.@preserve attributeArray cStruct(
@@ -896,8 +896,8 @@ function createEntry(::Type{GPUVertexBufferLayout}; args...)
         attributes = pointer(attributeArray),
         attributeCount = length(attributeArray),
         xref1 = attributeArray |> Ref,
-    ) |> Ref
-    return GPUVertexBufferLayout(aref, (attributeArray |> Ref, attributeObjs .|> Ref))
+    )
+    return GPUVertexBufferLayout(aref, (attributeArgs, args, attributeArray |> Ref, attributeObjs .|> Ref))
 end
 
 mutable struct GPUVertexState
@@ -906,18 +906,16 @@ mutable struct GPUVertexState
 end
 
 function createEntry(::Type{GPUVertexState}; args...)
-    bufferDescArray = WGPUVertexBufferLayout[]
-    buffersArrayObjs = GPUVertexBufferLayout[]
+    bufferDescArray = WGPUVertexBufferLayout[] |> Ref
+    buffersArrayObjs = GPUVertexBufferLayout[] |> Ref
     buffers = args[:buffers]
     entryPointArg = args[:entryPoint]
 
     for buffer in buffers
         obj = createEntry(buffer.first; buffer.second...)
-        push!(buffersArrayObjs, obj )
-        push!(bufferDescArray, obj.internal[] |> concrete)
+        push!(buffersArrayObjs[], obj )
+        push!(bufferDescArray[], obj.internal |> concrete)
     end
-
-    entryPointPtr = toCString(entryPointArg)
 
     shader = args[:_module]
     if shader != C_NULL
@@ -926,16 +924,16 @@ function createEntry(::Type{GPUVertexState}; args...)
         shaderInternal = C_NULL |> Ref
     end
 
-    aRef = GC.@preserve entryPointPtr bufferDescArray cStruct(
+    aRef = GC.@preserve entryPointArg bufferDescArray cStruct(
         WGPUVertexState;
         _module = shaderInternal[],
-        entryPoint = entryPointPtr,
-        buffers = length(buffers) == 0 ? C_NULL : pointer(bufferDescArray),
+        entryPoint = toCString(entryPointArg),
+        buffers = length(buffers) == 0 ? C_NULL : pointer(bufferDescArray[]),
         bufferCount = length(buffers),
         xref1 = bufferDescArray,
         xref2 = shader,
     ) |> Ref
-    GPUVertexState(aRef, (bufferDescArray, buffersArrayObjs .|> Ref, entryPointArg, args))
+    GPUVertexState(aRef, (shader, buffers, bufferDescArray, buffersArrayObjs .|> Ref, entryPointArg, args))
 end
 
 mutable struct GPUPrimitiveState
@@ -1099,6 +1097,7 @@ mutable struct GPURenderPipeline
     label::Any
     internal::Any
     descriptor::Any
+    renderArgs::Any
     device::Any
     layout::Any
     vertexState::Any
@@ -1149,6 +1148,7 @@ function createRenderPipeline(
         label,
         renderpipeline,
         pipelineDesc |> Ref,
+        renderArgs,
         gpuDevice,
         pipelinelayout |> Ref,
         vertexState |> Ref,
@@ -1209,7 +1209,7 @@ function createEntry(::Type{GPUColorAttachments}; args...)
     for attachment in get(args, :attachments, [])
         obj = createEntry(attachment.first; attachment.second...) # TODO MallocInfo
         push!(attachmentObjs, obj)
-        push!(attachments, obj.internal[])
+        push!(attachments, obj.internal |> concrete)
     end
     return GPUColorAttachments(attachments |> Ref, (attachments, attachmentObjs) .|> Ref)
 end
@@ -1407,7 +1407,7 @@ function copyTextureToBuffer(
             WGPUImageCopyTexture;
             texture = source[:texture].internal[],
             mipLevel = get(source, :mipLevel, 0),
-            origin = cOrigin,
+            origin = cOrigin |> concrete,
             aspect = getEnum(WGPUTextureAspect, "All"),
         ) |> ptr
     cDestination =
@@ -1417,7 +1417,7 @@ function copyTextureToBuffer(
             layout = cStruct(
                 WGPUTextureDataLayout;
                 destination[:layout]..., # should document these obscure
-            ) |> ptr |> unsafe_load,
+            ) |> concrete,
         ) |> ptr
     cCopySize = cStruct(WGPUExtent3D; copySize...) |> ptr
 

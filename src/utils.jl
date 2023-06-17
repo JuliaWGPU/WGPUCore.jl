@@ -222,11 +222,17 @@ function getWGPUInstance()
 end
 
 
-struct CStruct{T}
+mutable struct CStruct{T}
 	ptr::Ptr{T}
 	function CStruct(cStructType::DataType)
 		csPtr = Libc.malloc(sizeof(cStructType))
-		return new{cStructType}(csPtr)
+		f(x) = begin
+ 			@info "Destroying CStruct `$x`"
+ 			Libc.free(getfield(x, :ptr))
+		end
+		obj = new{cStructType}(csPtr)
+		finalizer(f, obj)
+		return obj
 	end
 end
 
@@ -277,13 +283,12 @@ function cStruct(ctype::DataType; fields...)
 			"""
 		end
 	end
-    r = WeakRef(cs) # TODO MallocInfo
-    f(x) = begin
-        @warn "Finalizing CStruct `$ctype` $x"
-        x = nothing
-    end
-    weakRefs[r] = ((infields .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
-    finalizer(f, r)
+    # r = WeakRef(cs) # TODO MallocInfo
+    # f(x) = begin
+        # @warn "Finalizing CStruct `$ctype` $x"
+    # end
+    # weakRefs[r] = ((infields .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
+    # finalizer(f, r)
 	return cs
 end
 

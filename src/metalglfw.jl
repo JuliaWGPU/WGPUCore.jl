@@ -426,7 +426,7 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
             width = max(1, pSize[1]),
             height = max(1, pSize[2]),
             presentMode = presentMode,
-        ) |> ptr
+        )
     if canvasCntxt.surfaceId == nothing
         canvasCntxt.surfaceId = getSurfaceIdFromCanvas(canvas)
     end
@@ -434,7 +434,7 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
         wgpuDeviceCreateSwapChain(
             canvasCntxt.device.internal[],
             canvasCntxt.surfaceId,
-            swapChain,
+            swapChain |> ptr,
         ) |> Ref
 end
 
