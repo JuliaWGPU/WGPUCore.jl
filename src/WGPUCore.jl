@@ -758,59 +758,62 @@ mutable struct GPUShaderModule
 end
 
 function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
+   	chain = cStruct(
+   		WGPUChainedStruct;
+   		next = C_NULL,
+   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+	) |> ptr |> unsafe_load
     wgslDescriptor = cStruct(
     	WGPUShaderModuleWGSLDescriptor;
-        chain = cStruct(
-        	WGPUChainedStruct;
-        	next = C_NULL,
-        	sType = WGPUSType_ShaderModuleWGSLDescriptor
-       	) |> ptr |> unsafe_load,
-        code = pointer(buffer),
-    ) |> ptr
+		chain = chain,
+    	code = pointer(buffer)
+    )
     a = cStruct(
         WGPUShaderModuleDescriptor;
-        nextInChain = wgslDescriptor,
+        nextInChain = wgslDescriptor |> ptr ,
         label = toCString(name),
     )
-    return (a, wgslDescriptor, names)
+    return (a, chain, wgslDescriptor, names)
 end
 
 function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
     b = read(buffer)
+   	chain = cStruct(
+   		WGPUChainedStruct;
+   		next = C_NULL,
+   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+	) |> ptr |> unsafe_load
     wgslDescriptor = cStruct(
     	WGPUShaderModuleWGSLDescriptor;
-    	chain = cStruct(
-    		WGPUChainedStruct;
-    		next = C_NULL,
-    		sType = WGPUSType_ShaderModuleWGSLDescriptor
-		) |> ptr |> unsafe_load, 
+		chain = chain,
     	code = pointer(b)
-    ) |> ptr
+    )
     a = cStruct(
         WGPUShaderModuleDescriptor;
-        nextInChain = wgslDescriptor,
+        nextInChain = wgslDescriptor |> ptr,
         label = toCString(name),
     )
-    return (a, wgslDescriptor, names)
+    return (a, chain, wgslDescriptor, names)
 end
 
 function loadWGSL(file::IOStream; name = " UnknownShader ")
     b = read(file)
+   	chain = cStruct(
+   		WGPUChainedStruct;
+   		next = C_NULL,
+   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+	) |> ptr |> unsafe_load
     wgslDescriptor = cStruct(
     	WGPUShaderModuleWGSLDescriptor;
-    	chain = cStruct(
-    		WGPUChainedStruct;
-    		next = C_NULL,
-    		sType = WGPUSType_ShaderModuleWGSLDescriptor
-   		) |> ptr |> unsafe_load, 
+		chain = chain,
     	code = pointer(b)
-    ) |> ptr
+    )
     a = cStruct(
         WGPUShaderModuleDescriptor;
-        nextInChain = wgslDescriptor,
+        nextInChain = wgslDescriptor |> ptr,
         label = toCString(name == "UnknownShader" ? file.name : name),
     )
-    return (a, wgslDescriptor, name)
+    return (a, chain, wgslDescriptor, name)
 end
 
 function createShaderModule(gpuDevice, label, shadercode, sourceMap, hints)
@@ -1043,18 +1046,20 @@ function createEntry(::Type{GPUColorTargetState}; args...)
     kargs = Dict(args)
     colorEntry = createEntry(GPUBlendComponent; args[:color]...)
     alphaEntry = createEntry(GPUBlendComponent; args[:alpha]...)
-    blendArgs = [:color => colorEntry.internal |> concrete, :alpha => alphaEntry.internal |> concrete]
-    blend = createEntry(GPUBlendState; blendArgs...)
+    # blendArgs = [:color => colorEntry |> concrete, :alpha => alphaEntry |> concrete]
+    blend = CStruct(WGPUBlendState)
+    blend.color = colorEntry.internal |> concrete
+    blend.alpha = alphaEntry.internal |> concrete
     kargs[:writeMask] = get(kargs, :writeMask, WGPUColorWriteMask_All)
     aref = GC.@preserve args blend cStruct(
         WGPUColorTargetState;
         format = kargs[:format],
-        blend = blend.internal |> ptr,
+        blend = blend |> ptr,
         writeMask = kargs[:writeMask],
     )
     return GPUColorTargetState(
         aref |> Ref,
-        (blend, blend.internal, colorEntry, alphaEntry, args, kargs) .|> Ref,
+        (blend, blend, colorEntry, alphaEntry, args, kargs) .|> Ref,
     )
 end
 
