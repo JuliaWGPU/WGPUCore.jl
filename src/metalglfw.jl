@@ -100,7 +100,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
         label = C_NULL,
         nextInChain = metalSurfaceRef |> ptr,
     )
-    instance = WGPUInstanceDescriptor(0) |> Ref |> wgpuCreateInstance
+    instance = getWGPUInstance()
     surfaceRef[] =
         wgpuInstanceCreateSurface(instance, surfaceDescriptorRef |> ptr)
     title = "GLFW Window"
