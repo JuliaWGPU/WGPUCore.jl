@@ -879,25 +879,28 @@ mutable struct GPUVertexBufferLayout
 end
 
 function createEntry(::Type{GPUVertexBufferLayout}; args...)
-    attributeArray = WGPUVertexAttribute[]
     attributeArgs = args[:attributes]
+	numAttrs = length(attributeArgs)
+    attributeArrayPtr = reinterpret(Ptr{WGPUVertexAttribute},
+    	Libc.malloc(sizeof(WGPUVertexAttribute)*numAttrs)
+    )
     attributeObjs = GPUVertexAttribute[]
 
-    for attribute in attributeArgs
+    for (idx, attribute) in enumerate(attributeArgs)
         obj = createEntry(GPUVertexAttribute; attribute.second...)
         push!(attributeObjs, obj)
-        push!(attributeArray, obj.internal |> concrete)
+        unsafe_store!(attributeArrayPtr, obj.internal |> concrete, idx)
     end
 
-    aref = GC.@preserve attributeArray cStruct(
+    aref = GC.@preserve attributeArrayPtr cStruct(
         WGPUVertexBufferLayout;
         arrayStride = args[:arrayStride],
         stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]),
-        attributes = pointer(attributeArray),
-        attributeCount = length(attributeArray),
-        xref1 = attributeArray |> Ref,
+        attributes = attributeArrayPtr,
+        attributeCount = numAttrs,
+        xref1 = attributeArrayPtr |> Ref,
     )
-    return GPUVertexBufferLayout(aref, (attributeArgs, args, attributeArray |> Ref, attributeObjs .|> Ref))
+    return GPUVertexBufferLayout(aref, (attributeArgs, args, attributeArrayPtr |> Ref, attributeObjs .|> Ref))
 end
 
 mutable struct GPUVertexState
@@ -906,15 +909,20 @@ mutable struct GPUVertexState
 end
 
 function createEntry(::Type{GPUVertexState}; args...)
-    bufferDescArray = WGPUVertexBufferLayout[] |> Ref
-    buffersArrayObjs = GPUVertexBufferLayout[] |> Ref
     buffers = args[:buffers]
+	bufferLen = length(buffers)
+	
+    bufferDescArrayPtr = reinterpret(Ptr{WGPUVertexBufferLayout},
+    	Libc.malloc(sizeof(WGPUVertexBufferLayout)*bufferLen)
+    )
+    
+    buffersArrayObjs = GPUVertexBufferLayout[] |> Ref
     entryPointArg = args[:entryPoint]
 
-    for buffer in buffers
+    for (idx, buffer) in enumerate(buffers)
         obj = createEntry(buffer.first; buffer.second...)
         push!(buffersArrayObjs[], obj )
-        push!(bufferDescArray[], obj.internal |> concrete)
+        unsafe_store!(bufferDescArrayPtr, obj.internal |> concrete, idx)
     end
 
     shader = args[:_module]
@@ -924,16 +932,16 @@ function createEntry(::Type{GPUVertexState}; args...)
         shaderInternal = C_NULL |> Ref
     end
 
-    aRef = GC.@preserve entryPointArg bufferDescArray cStruct(
+    aRef = GC.@preserve entryPointArg bufferDescArrayPtr cStruct(
         WGPUVertexState;
         _module = shaderInternal[],
         entryPoint = toCString(entryPointArg),
-        buffers = length(buffers) == 0 ? C_NULL : pointer(bufferDescArray[]),
+        buffers = length(buffers) == 0 ? C_NULL : bufferDescArrayPtr,
         bufferCount = length(buffers),
-        xref1 = bufferDescArray,
+        xref1 = bufferDescArrayPtr,
         xref2 = shader,
     ) |> Ref
-    GPUVertexState(aRef, (shader, buffers, bufferDescArray, buffersArrayObjs .|> Ref, entryPointArg, args))
+    GPUVertexState(aRef, (shader, buffers, bufferDescArrayPtr, buffersArrayObjs .|> Ref, entryPointArg, args))
 end
 
 mutable struct GPUPrimitiveState
