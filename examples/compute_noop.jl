@@ -32,10 +32,10 @@ end
 # canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice()
 
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first
+shaderInfo = WGPUCore.loadWGSL(shaderSource)
 
 cshader =
-    WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing) |> Ref
+    WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderInfo.shaderModuleDesc, nothing, nothing) |> Ref
 
 (buffer1, _) = WGPUCore.createBufferWithData(gpuDevice, "buffer1", data, "Storage")
 
@@ -57,10 +57,7 @@ bindings = [
 ]
 
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-# 
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 computeStage = WGPUCore.createComputeStage(cshader[], "main")
 computePipeline =
     WGPUCore.createComputePipeline(gpuDevice, "computePipeline", pipelineLayout, computeStage)
@@ -69,7 +66,7 @@ commandEncoder = WGPUCore.createCommandEncoder(gpuDevice, "Command Encoder")
 computePass = WGPUCore.beginComputePass(commandEncoder)
 
 WGPUCore.setPipeline(computePass, computePipeline)
-WGPUCore.setBindGroup(computePass, 0, bindGroup, UInt32[], 0, 99999)
+WGPUCore.setBindGroup(computePass, 0, pipelineLayout.bindGroup, UInt32[], 0, 99999)
 WGPUCore.dispatchWorkGroups(computePass, n, 1, 1)
 WGPUCore.endComputePass(computePass)
 WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(commandEncoder)])

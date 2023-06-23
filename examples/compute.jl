@@ -69,11 +69,11 @@ wgslDescriptor = WGPUShaderModuleWGSLDescriptor(defaultInit(WGPUChainedStruct), 
 
 ## WGSL loading
 
-shaderSource = WGPUCore.loadWGSL(open(pkgdir(WGPUCore) * "/examples/shader.wgsl")) |> first
+shaderInfo = WGPUCore.loadWGSL(open(pkgdir(WGPUCore) * "/examples/shader.wgsl"))
 
 ##
 
-shader = wgpuDeviceCreateShaderModule(device[], (shaderSource) |> ptr)
+shader = wgpuDeviceCreateShaderModule(device[], shaderInfo.shaderModuleDesc |> ptr)
 
 ## StagingBuffer 
 stagingBuffer = wgpuDeviceCreateBuffer(

@@ -3,8 +3,9 @@ using WGPUCore
 using GLFW
 using WGPUNative
 using Images
+using Debugger
 
-WGPUCore.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}(
     """
@@ -21,7 +22,6 @@ shaderSource = Vector{UInt8}(
         var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0));
         let index = i32(in.vertex_index);
         let p: vec2<f32> = positions[index];
-
         var out: VertexOutput;
         out.pos = vec4<f32>(sin(p), 0.5, 1.0);
         out.color = vec4<f32>(p, 0.5, 1.0);
@@ -37,17 +37,15 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
+shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
 
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 presentContext = WGPUCore.getContext(canvas)
 ctxtSize = WGPUCore.determineSize(presentContext[]) .|> Int

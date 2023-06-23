@@ -53,9 +53,9 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
+shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing));
 
 flatten(x) = reshape(x, (:,))
 
@@ -194,10 +194,8 @@ bindings = [
     WGPUCore.GPUSampler => [:binding => 2, :sampler => sampler],
 ]
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 
 presentContext = WGPUCore.getContext(canvas)
 
@@ -308,7 +306,7 @@ try
         WGPUCore.setPipeline(renderPass, renderPipeline)
         WGPUCore.setIndexBuffer(renderPass, indexBuffer, "Uint32")
         WGPUCore.setVertexBuffer(renderPass, 0, vertexBuffer)
-        WGPUCore.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
+        WGPUCore.setBindGroup(renderPass, 0, pipelineLayout.bindGroup, UInt32[], 0, 99)
         WGPUCore.drawIndexed(
             renderPass,
             Int32(indexBuffer.size / sizeof(UInt32));

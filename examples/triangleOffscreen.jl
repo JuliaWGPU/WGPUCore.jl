@@ -39,9 +39,9 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.OffscreenCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
+shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
