@@ -39,27 +39,15 @@ shaderSource =
     )
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
-cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing);
+shaderInfo = WGPUCore.loadWGSL(shaderSource);
+cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderInfo.shaderModuleDesc, nothing, nothing);
 cshaderRef = cshader |> Ref
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPUCore.makeLayoutEntryList(bindingLayouts))
-cBindingsList = Ref(WGPUCore.makeBindGroupEntryList(bindings))
-bindGroupLayout =
-    WGPUCore.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPUCore.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
-if bindGroupLayout.internal[] == C_NULL
-    bindGroupLayouts = C_NULL
-else
-    bindGroupLayouts = map((x) -> x.internal[], [bindGroupLayout])
-end
-
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayout)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
-
 
 renderpipelineOptions = [
     WGPUCore.GPUVertexState => [
