@@ -3,10 +3,12 @@ using WGPUNative
 using CEnum
 using CEnum: Cenum
 
+export cStruct, CStruct, cStructPtr, ptr, concrete
+
 ## default inits for non primitive types
 weakRefs = WeakKeyDict() # |> lock
 
-DEBUG = false
+DEBUG = true
 
 function setDebugMode(mode)
     global DEBUG
@@ -64,8 +66,8 @@ end
 
 function SetLogLevel(loglevel::WGPULogLevel)
 	# Commenting them for now TODO verify the link to MallocInfo
-    # logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
-    # wgpuSetLogCallback(logcallback)
+    logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
+    wgpuSetLogCallback(logcallback, C_NULL)
     @info "Setting Log level : $loglevel"
     wgpuSetLogLevel(loglevel)
 end
@@ -75,6 +77,8 @@ defaultInit(::Type{T}) where {T<:Number} = T(0)
 defaultInit(::Type{T}) where {T} = begin
     if isprimitivetype(T)
         return T(0)
+    elseif isabstracttype(T)
+    	return nothing
     else
         ins = []
         for t in fieldnames(T)
@@ -85,7 +89,7 @@ defaultInit(::Type{T}) where {T} = begin
         f(x) = begin
             # global DEBUG
             # if DEBUG == true
-                # @warn "Finalizing WGPURef $x"
+            @warn "Finalizing WGPURef $x"
             # end
             x = nothing
         end
@@ -105,15 +109,21 @@ defaultInit(::Type{Array{T,N}}) where {T} where {N} = zeros(T, DEFAULT_ARRAY_SIZ
 
 defaultInit(::Type{WGPUPowerPreference}) = WGPUPowerPreference_LowPower
 
-defaultInit(::Type{Any}) = nothing
-
-defaultInit(::Type{WGPUPredefinedColorSpace}) = WGPUPredefinedColorSpace_Srgb
+# defaultInit(::Type{Any}) = nothing
 
 defaultInit(::Type{Tuple{T}}) where {T} = Tuple{T}(zeros(T))
 
 defaultInit(::Type{Ref{T}}) where {T} = Ref{T}()
 
 defaultInit(::Type{NTuple{N,T}}) where {N,T} = zeros(T, (N,)) |> NTuple{N,T}
+
+function toCString(s::String)
+	sNullTerminated = s*"\0"
+	sPtr = pointer(sNullTerminated)
+	dPtr = Libc.malloc(sizeof(sNullTerminated))
+	dUInt8Ptr = reinterpret(Ptr{UInt8}, dPtr)
+	unsafe_copyto!(dUInt8Ptr, sPtr, sizeof(sNullTerminated))
+end
 
 mutable struct WGPURef{T}
     value::Union{T,Nothing}
@@ -159,7 +169,7 @@ function partialInit(target::Type{T}; fields...) where {T}
     t = T(ins...)  # TODO MallocInfo
     r = WGPURef(t) # TODO MallocInfo
     f(x) = begin
-        # @warn "Finalizing WGPURef $x"
+        @warn "Finalizing WGPURef $x"
         x = nothing
     end
     weakRefs[r] = (t, (ins .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
@@ -200,3 +210,99 @@ function listPartials(::Type{T}) where {T<:Cenum}
     pairs = CEnum.name_value_pairs(T)
     map((x) -> split(string(x[1]), "_")[end], pairs)
 end
+
+_wgpuInstance = Ptr{WGPUInstanceImpl}()
+
+function getWGPUInstance()
+	global _wgpuInstance
+	if _wgpuInstance == C_NULL
+		_wgpuInstance = WGPUInstanceDescriptor(0) |> Ref |> wgpuCreateInstance
+	end
+	return _wgpuInstance
+end
+
+
+mutable struct CStruct{T}
+	ptr::Ptr{T}
+	function CStruct(cStructType::DataType)
+		csPtr = Libc.malloc(sizeof(cStructType))
+		f(x) = begin
+ 			@info "Destroying CStruct `$x`"
+ 			Libc.free(getfield(x, :ptr))
+		end
+		obj = new{cStructType}(csPtr)
+		finalizer(f, obj)
+		return obj
+	end
+end
+
+
+function indirectionToField(cstruct::CStruct{T}, x) where T
+	fieldIdx = Base.fieldindex(T, x)
+	fieldOffset = Base.fieldoffset(T, fieldIdx)
+	fieldType = Base.fieldtype(T, fieldIdx)
+	fieldSize = fieldType |> sizeof
+	offsetptr = getfield(cstruct, :ptr) + fieldOffset
+	field = reinterpret(Ptr{fieldType}, offsetptr)
+end
+
+function Base.getproperty(cstruct::CStruct{T}, x::Symbol) where T
+	unsafe_load(indirectionToField(cstruct, x), 1)
+end
+
+function Base.setproperty!(cstruct::CStruct{T}, x::Symbol, v) where T
+	field = indirectionToField(cstruct, x)
+	unsafe_store!(field, v)
+end
+
+
+ptr(cs::CStruct{T}) where T = getfield(cs, :ptr)
+
+# TODO this is not working right now
+# left it because its not priority.
+# Can always use getfield
+function Base.getproperty(cstruct::CStruct{T}, x::Val{:ptr}) where T
+	getfield(cstruct, :ptr)
+end
+
+
+function cStruct(ctype::DataType; fields...)
+	infields = []
+	others = []
+	cs = CStruct(ctype)
+	inPairs = pairs(fields)
+	for field in keys(inPairs)
+		if field in fieldnames(ctype)
+			setproperty!(cs, field, inPairs[field])
+		elseif startswith(string(field), "xref")
+			push!(others, inPairs[field])
+		else 
+			@warn """ CStruct : Setting property of non member field. \n
+			Trying to set non member field `$field`.
+			only supported fieldnames for `$ctype` are $(fieldnames(ctype))
+			"""
+		end
+	end
+    # r = WeakRef(cs) # TODO MallocInfo
+    # f(x) = begin
+        # @warn "Finalizing CStruct `$ctype` $x"
+    # end
+    # weakRefs[r] = ((infields .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
+    # finalizer(f, r)
+	return cs
+end
+
+function cStructPtr(ctype::DataType; fields...)
+	return ptr(cStruct(ctype; fields...))
+end
+
+function concrete(cstruct::CStruct{T}) where T
+	return cstruct |> ptr |> unsafe_load
+end
+
+# TODO might cause few issues commenting for now
+# This would help us while working with REPL
+# function Base.fieldnames(cstruct::CStruct{T}) where T
+	# Base.fieldnames(T)
+# end
+

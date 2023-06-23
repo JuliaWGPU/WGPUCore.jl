@@ -1,6 +1,6 @@
 ## Load WGPU
 using WGPUCore
-using WGPUCore: defaultInit, partialInit, pointerRef
+using WGPUCore: defaultInit, partialInit, pointerRef, SetLogLevel, toCString
 using WGPUNative
 
 ## Constants
@@ -15,36 +15,12 @@ const height = 200
 ## Print current version
 println("Current Version : $(wgpuGetVersion())")
 
-## Set Log callbacks
-function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
-    if logLevel == WGPULogLevel_Error
-        level_str = "ERROR"
-    elseif logLevel == WGPULogLevel_Warn
-        level_str = "WARN"
-    elseif logLevel == WGPULogLevel_Info
-        level_str = "INFO"
-    elseif logLevel == WGPULogLevel_Debug
-        level_str = "DEBUG"
-    elseif logLevel == WGPULogLevel_Trace
-        level_str = "TRACE"
-    else
-        level_str = "UNKNOWN LOG LEVEL"
-    end
-    println("$(level_str) $(unsafe_string(msg))")
-end
-
-
-logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
-
-wgpuSetLogCallback(logcallback)
-wgpuSetLogLevel(WGPULogLevel(1))
-
+SetLogLevel(WGPULogLevel_Debug)
 ## 
 adapter = Ref(WGPUAdapter())
 device = Ref(WGPUDevice())
 
-
-adapterOptions = Ref(defaultInit(WGPURequestAdapterOptions))
+adapterOptions = cStruct(WGPURequestAdapterOptions)
 
 function request_adapter_callback(
     a::WGPURequestAdapterStatus,
@@ -79,40 +55,12 @@ requestDeviceCallback = @cfunction(
     (WGPURequestDeviceStatus, WGPUDevice, Ptr{Cchar}, Ptr{Cvoid})
 )
 
-
+instance = wgpuCreateInstance(WGPUInstanceDescriptor(0) |> Ref)
 ## request adapter 
 
-wgpuInstanceRequestAdapter(C_NULL, adapterOptions, requestAdapterCallback, adapter)
+wgpuInstanceRequestAdapter(instance, adapterOptions |> ptr, requestAdapterCallback, adapter)
 
-##
-
-chain = WGPUChainedStruct(C_NULL, WGPUSType(6))
-
-deviceName = Vector{UInt8}("Device")
-deviceExtras =
-    WGPUDeviceExtras(chain, defaultInit(WGPUNativeFeature), pointer(deviceName), C_NULL)
-
-const DEFAULT_ARRAY_SIZE = 256
-
-wgpuLimits = partialInit(WGPULimits; maxBindGroups = 1)
-
-wgpuRequiredLimits = WGPURequiredLimits(C_NULL, wgpuLimits)
-
-wgpuQueueDescriptor = WGPUQueueDescriptor(C_NULL, C_NULL)
-
-wgpuDeviceDescriptor = Ref(
-    partialInit(
-        WGPUDeviceDescriptor,
-        nextInChain = pointer_from_objref(
-            Ref(partialInit(WGPUChainedStruct, chain = deviceExtras)),
-        ),
-        requiredLimits = pointer_from_objref(Ref(wgpuRequiredLimits)),
-        defaultQueue = wgpuQueueDescriptor,
-    ),
-)
-
-
-wgpuAdapterRequestDevice(adapter[], wgpuDeviceDescriptor, requestDeviceCallback, device[])
+wgpuAdapterRequestDevice(adapter[], C_NULL, requestDeviceCallback, device[])
 
 
 ##
@@ -121,122 +69,93 @@ wgslDescriptor = WGPUShaderModuleWGSLDescriptor(defaultInit(WGPUChainedStruct), 
 
 ## WGSL loading
 
-function load_wgsl(codeBuffer::Union{IOStream,IOBuffer})
-    b = read(codeBuffer)
-    wgslDescriptor =
-        Ref(WGPUShaderModuleWGSLDescriptor(defaultInit(WGPUChainedStruct), pointer(b)))
-    a = partialInit(
-        WGPUShaderModuleDescriptor;
-        nextInChain = pointer_from_objref(wgslDescriptor),
-        label = pointer(Vector{UInt8}("$(filename)")),
-    )
-    return (a, wgslDescriptor)
-end
-
-shaderSource = WGPUCore.loadWGSL(open(pkgdir(WGPUCore) * "/examples/shader.wgsl")) |> first
+shaderInfo = WGPUCore.loadWGSL(open(pkgdir(WGPUCore) * "/examples/shader.wgsl"))
 
 ##
 
-shader = wgpuDeviceCreateShaderModule(device[], pointer_from_objref(shaderSource))
+shader = wgpuDeviceCreateShaderModule(device[], shaderInfo.shaderModuleDesc |> ptr)
 
 ## StagingBuffer 
 stagingBuffer = wgpuDeviceCreateBuffer(
     device[],
-    Ref(
-        partialInit(
+	cStruct(
             WGPUBufferDescriptor;
             nextInChain = C_NULL,
-            label = pointer(Vector{UInt8}("StagingBuffer")),
+            label = toCString("StagingBuffer"),
             usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
             size = sizeof(numbers),
             mappedAtCreation = false,
-        ),
-    ),
+    ) |> ptr,
 )
-
-# using BenchmarkTools
-
-# @benchmark  wgpuDeviceCreateBuffer(
-    # device[],
-    # Ref(
-        # partialInit(
-            # WGPUBufferDescriptor;
-            # nextInChain = C_NULL,
-            # label = pointer(Vector{UInt8}("StagingBuffer")),
-            # usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-            # size = sizeof(numbers),
-            # mappedAtCreation = false,
-        # ),
-    # ),
-# )
 
 ## StorageBuffer 
 storageBuffer = wgpuDeviceCreateBuffer(
     device[],
-    Ref(
-        partialInit(
-            WGPUBufferDescriptor;
-            nextInChain = C_NULL,
-            label = pointer(Vector{UInt8}("StorageBuffer")),
-            usage = WGPUBufferUsage_Storage |
-                    WGPUBufferUsage_CopyDst |
-                    WGPUBufferUsage_CopySrc,
-            size = sizeof(numbers),
-            mappedAtCreation = false,
-        ),
-    ),
+    cStruct(
+	    WGPUBufferDescriptor;
+	    nextInChain = C_NULL,
+	    label = toCString("StorageBuffer"),
+	    usage = WGPUBufferUsage_Storage |
+	            WGPUBufferUsage_CopyDst |
+	            WGPUBufferUsage_CopySrc,
+	    size = sizeof(numbers),
+	    mappedAtCreation = false,
+    ) |> ptr,
 )
 
+bufBindingLayout = cStruct(
+    WGPUBufferBindingLayout;
+    type = WGPUBufferBindingType_Storage,
+)
+
+lentry = cStruct(
+    WGPUBindGroupLayoutEntry;
+    nextInChain = C_NULL,
+    binding = 0,
+    visibility = WGPUShaderStage_Compute,
+    buffer = bufBindingLayout |> ptr |> unsafe_load,
+    sampler = cStruct(
+    	WGPUSamplerBindingLayout;
+    ) |> ptr |> unsafe_load,
+    texture = cStruct(
+    	WGPUTextureBindingLayout;
+    ) |> ptr |> unsafe_load,
+    storageTexture = cStruct(
+    	WGPUStorageTextureBindingLayout;
+    ) |> ptr |> unsafe_load
+) |> ptr |> unsafe_load
 
 ## BindGroupLayout
 bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
     device[],
-    partialInit(
+    cStruct(
         WGPUBindGroupLayoutDescriptor;
-        label = pointer(Vector{UInt8}("Bind Group Layout")),
+        label = toCString("Bind Group Layout"),
         entries = pointer([
-            partialInit(
-                WGPUBindGroupLayoutEntry;
-                nextInChain = C_NULL,
-                binding = 0,
-                visibility = WGPUShaderStage_Compute,
-                buffer = partialInit(
-                    WGPUBufferBindingLayout;
-                    type = WGPUBufferBindingType_Storage,
-                ),
-                # sampler = defaultInit(
-                # WGPUSamplerBindingLayout;
-                # ),
-                # texture = defaultInit(
-                # WGPUTextureBindingLayout;
-                # ),
-                # storageTexture = defaultInit(
-                # WGPUStorageTextureBindingLayout;
-                # )
-            )[],
+            lentry,
         ]),
         entryCount = 1,
-    ) |> Ref,
+    ) |> ptr,
 )
 
 ## BindGroup
 bindGroup = wgpuDeviceCreateBindGroup(
     device[],
-    partialInit(
+    cStruct(
         WGPUBindGroupDescriptor;
-        label = pointer(Vector{UInt8}("Bind Group")),
+        label = toCString("Bind Group"),
         layout = bindGroupLayout,
         entries = pointer([
-            partialInit(
+            cStruct(
                 WGPUBindGroupEntry;
                 binding = 0,
                 buffer = storageBuffer,
                 offset = 0,
                 size = sizeof(numbers),
-            )[],
+            ) |> ptr |> unsafe_load,
         ]),
         entryCount = 1,
-    ) |> Ref,
+    ) |> ptr,
 )
 
 
@@ -246,37 +165,33 @@ bindGroupLayouts = [bindGroupLayout]
 ## Pipeline Layout
 pipelineLayout = wgpuDeviceCreatePipelineLayout(
     device[],
-    partialInit(
+    cStruct(
         WGPUPipelineLayoutDescriptor;
         bindGroupLayouts = pointer(bindGroupLayouts),
         bindGroupLayoutCount = 1,
-    ) |> Ref,
+    ) |> ptr,
 )
 
 
 ## compute pipeline
 computePipeline = wgpuDeviceCreateComputePipeline(
     device[],
-    partialInit(
+    cStruct(
         WGPUComputePipelineDescriptor,
         layout = pipelineLayout,
-        compute = partialInit(
+        compute = cStruct(
             WGPUProgrammableStageDescriptor;
             _module = shader,
-            entryPoint = pointer(Vector{UInt8}("main")),
-        ),
-    ) |> Ref,
+            entryPoint = toCString("main"),
+        ) |> ptr |> unsafe_load,
+    ) |> ptr,
 )
 ## encoder
 encoder = wgpuDeviceCreateCommandEncoder(
     device[],
-    pointer_from_objref(
-        Ref(
-            partialInit(
-                WGPUCommandEncoderDescriptor;
-                label = pointer(Vector{UInt8}("Command Encoder")),
-            ),
-        ),
+    cStructPtr(
+        WGPUCommandEncoderDescriptor;
+        label = toCString("Command Encoder"),
     ),
 )
 
@@ -284,20 +199,16 @@ encoder = wgpuDeviceCreateCommandEncoder(
 ## computePass
 computePass = wgpuCommandEncoderBeginComputePass(
     encoder,
-    pointer_from_objref(
-        Ref(
-            partialInit(
-                WGPUComputePassDescriptor;
-                label = pointer(Vector{UInt8}("Compute Pass")),
-            ),
-        ),
+    cStructPtr(
+        WGPUComputePassDescriptor;
+        label = toCString("Compute Pass"),
     ),
 )
 
 ## set pipeline
 wgpuComputePassEncoderSetPipeline(computePass, computePipeline)
 wgpuComputePassEncoderSetBindGroup(computePass, 0, bindGroup, 0, C_NULL)
-wgpuComputePassEncoderDispatch(computePass, length(numbers), 1, 1)
+wgpuComputePassEncoderDispatchWorkgroups(computePass, length(numbers), 1, 1)
 wgpuComputePassEncoderEnd(computePass)
 
 ## buffer copy buffer
@@ -316,7 +227,7 @@ queue = wgpuDeviceGetQueue(device[])
 ## commandBuffer
 cmdBuffer = wgpuCommandEncoderFinish(
     encoder,
-    pointer_from_objref(Ref(defaultInit(WGPUCommandBufferDescriptor))),
+    cStruct(WGPUCommandBufferDescriptor) |> ptr,
 )
 
 ## writeBuffer
@@ -347,7 +258,7 @@ wgpuBufferMapAsync(
 print(asyncstatus[])
 
 ## device polling
-wgpuDevicePoll(device[], true)
+wgpuDevicePoll(device[], true, C_NULL)
 
 ## times
 times = convert(Ptr{UInt32}, wgpuBufferGetMappedRange(stagingBuffer, 0, sizeof(numbers)))

@@ -16,7 +16,7 @@ shaderSource = Vector{UInt8}(
         @builtin(position) pos: vec4<f32>,
     };
 
-    @stage(vertex)
+    @vertex
     fn vs_main(in: VertexInput) -> VertexOutput {
         var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -0.5), vec2<f32>(0.5, 0.5), vec2<f32>(-0.5, 0.7));
         let index = i32(in.vertex_index);
@@ -26,24 +26,24 @@ shaderSource = Vector{UInt8}(
         out.pos = vec4<f32>(sin(p), 0.0, 1.0);
         out.color = vec4<f32>(p, 0.5, 1.0);
         return out;
-    }s
+    }
 
-    @stage(fragment)
+    @fragment
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return in.color;
     }
     """,
 );
 
-canvas = WGPUCore.defaultInit(WGPUCore.WGPUCanvas);
+canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
+shaderinfo = WGPUCore.loadWGSL(shaderSource);
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderinfo.shaderModuleDesc, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPUCore.makeEntryList(bindingLayouts))
+cBindingLayoutsList = Ref(WGPUCore.makeLayoutEntryList(bindingLayouts))
 cBindingsList = Ref(WGPUCore.makeBindGroupEntryList(bindings))
 bindGroupLayout =
     WGPUCore.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
@@ -55,7 +55,7 @@ else
     bindGroupLayouts = map((x) -> x.internal[], [bindGroupLayout])
 end
 
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayout)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 
 fStateOptions =
@@ -73,7 +73,7 @@ fStateOptions =
 
 fstate = WGPUCore.createEntry(fStateOptions.first; fStateOptions.second...)
 
-fs = unsafe_load(convert(Ptr{WGPUCore.WGPUFragmentState}, fstate.internal[]))
+fs = unsafe_load(fstate.internal[] |> ptr)
 
 Test.@testset "FragmentState" begin
     Test.@test unsafe_string(fs.entryPoint) == "fs_main"

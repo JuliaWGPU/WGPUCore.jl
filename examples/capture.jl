@@ -1,12 +1,17 @@
 ## Load WGPU
 using WGPUCore
-using WGPUCore: defaultInit, partialInit, pointerRef
+using WGPUCore: defaultInit
+using WGPUCore: partialInit
+using WGPUCore: pointerRef
+using WGPUCore: toCString
+using WGPUCore: SetLogLevel
 using WGPUNative
 ## Constants
 numbers = UInt32[1, 2, 3, 4]
 
 const DEFAULT_ARRAY_SIZE = 256
 
+SetLogLevel(WGPULogLevel_Debug)
 ## Init Window Size
 
 const width = 200
@@ -14,45 +19,12 @@ const height = 200
 
 println("Current Version : $(wgpuGetVersion())")
 
-
-
-function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
-    if logLevel == WGPULogLevel_Error
-        level_str = "ERROR"
-    elseif logLevel == WGPULogLevel_Warn
-        level_str = "WARN"
-    elseif logLevel == WGPULogLevel_Info
-        level_str = "INFO"
-    elseif logLevel == WGPULogLevel_Debug
-        level_str = "DEBUG"
-    elseif logLevel == WGPULogLevel_Trace
-        level_str = "TRACE"
-    else
-        level_str = "UNKNOWN LOG LEVEL"
-    end
-    println("$(level_str) $(unsafe_string(msg))")
-end
-
-function SetLogLevel(loglevel::WGPULogLevel)
-    logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
-    wgpuSetLogCallback(logcallback)
-    @info "Setting Log level : $loglevel"
-    wgpuSetLogLevel(loglevel)
-end
-
-
-logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
-
-wgpuSetLogCallback(logcallback)
-wgpuSetLogLevel(WGPULogLevel(4))
-
 ## 
 
 adapter = Ref(WGPUAdapter())
 device = Ref(WGPUDevice())
 
-
-adapterOptions = Ref(WGPUCore.defaultInit(WGPURequestAdapterOptions))
+adapterOptions = cStruct(WGPURequestAdapterOptions) |> ptr
 
 function request_adapter_callback(
     a::WGPURequestAdapterStatus,
@@ -88,40 +60,12 @@ requestDeviceCallback = @cfunction(
     (WGPURequestDeviceStatus, WGPUDevice, Ptr{Cchar}, Ptr{Cvoid})
 )
 
-
+instance = wgpuCreateInstance(WGPUInstanceDescriptor(0) |> Ref)
 ## request adapter 
 
-wgpuInstanceRequestAdapter(C_NULL, adapterOptions, requestAdapterCallback, adapter)
+wgpuInstanceRequestAdapter(instance, adapterOptions, requestAdapterCallback, adapter)
 
-##
-
-chain = WGPUChainedStruct(C_NULL, WGPUSType(6))
-
-deviceName = Vector{UInt8}("Device")
-deviceExtras =
-    WGPUDeviceExtras(chain, defaultInit(WGPUNativeFeature), pointer(deviceName), C_NULL)
-
-const DEFAULT_ARRAY_SIZE = 256
-
-wgpuLimits = partialInit(WGPULimits; maxBindGroups = 1)
-
-wgpuRequiredLimits = WGPURequiredLimits(C_NULL, wgpuLimits)
-
-wgpuQueueDescriptor = WGPUQueueDescriptor(C_NULL, C_NULL)
-
-wgpuDeviceDescriptor = Ref(
-    partialInit(
-        WGPUDeviceDescriptor,
-        nextInChain = pointer_from_objref(
-            Ref(partialInit(WGPUChainedStruct, chain = deviceExtras)),
-        ),
-        requiredLimits = pointer_from_objref(Ref(wgpuRequiredLimits)),
-        defaultQueue = wgpuQueueDescriptor,
-    ),
-)
-
-
-wgpuAdapterRequestDevice(adapter[], wgpuDeviceDescriptor, requestDeviceCallback, device[])
+wgpuAdapterRequestDevice(adapter[], C_NULL, requestDeviceCallback, device[])
 
 ## Buffer dimensions
 
@@ -147,21 +91,19 @@ bufferSize = bufferDimensions.padded_bytes_per_row * bufferDimensions.height
 
 outputBuffer = wgpuDeviceCreateBuffer(
     device[],
-    Ref(
-        partialInit(
-            WGPUBufferDescriptor;
-            nextInChain = C_NULL,
-            label = pointer(Vector{UInt8}("Output Buffer")),
-            usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-            size = bufferSize,
-            mappedAtCreation = false,
-        ),
-    ),
+	cStruct(
+	    WGPUBufferDescriptor;
+	    nextInChain = C_NULL,
+	    label = toCString("Output Buffer"),
+	    usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+	    size = bufferSize,
+	    mappedAtCreation = false,
+    ) |> ptr
 )
 
 ## textureExtent 
 
-textureExtent = partialInit(
+textureExtent = cStruct(
     WGPUExtent3D;
     width = bufferDimensions.width,
     height = bufferDimensions.height,
@@ -172,53 +114,53 @@ textureExtent = partialInit(
 
 texture = wgpuDeviceCreateTexture(
     device[],
-    Ref(
-        partialInit(
-            WGPUTextureDescriptor;
-            nextInChain = C_NULL,
-            lable = C_NULL,
-            size = textureExtent,
-            mipLevelCount = 1,
-            sampleCount = 1,
-            dimension = WGPUTextureDimension_2D,
-            format = WGPUTextureFormat_RGBA8UnormSrgb,
-            usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
-        ),
-    ),
+	cStruct(
+	    WGPUTextureDescriptor;
+	    nextInChain = C_NULL,
+	    label = C_NULL,
+	    size = textureExtent |> ptr |> unsafe_load,
+	    mipLevelCount = 1,
+	    sampleCount = 1,
+	    dimension = WGPUTextureDimension_2D,
+	    format = WGPUTextureFormat_RGBA8UnormSrgb,
+	    usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
+    ) |> ptr
 )
 
 ## encoder
 
 encoder = wgpuDeviceCreateCommandEncoder(
     device[],
-    pointer_from_objref(Ref(defaultInit(WGPUCommandEncoderDescriptor))),
+    cStructPtr(WGPUCommandEncoderDescriptor),
 )
 
 ## outputAttachment
+# outputAttachment = wgpuTextureCreateView(
+    # texture,
+    # Ref(defaultInit(WGPUTextureViewDescriptor)),
+# )
 outputAttachment = wgpuTextureCreateView(
     texture,
-    Ref(defaultInit(WGPUTextureViewDescriptor)),
+    C_NULL,
 )
 
 
 ## renderPass
 renderPass = wgpuCommandEncoderBeginRenderPass(
     encoder,
-    partialInit(
+    cStruct(
         WGPURenderPassDescriptor;
-        colorAttachments = pointer_from_objref(
-            partialInit(
-                WGPURenderPassColorAttachment;
-                view = outputAttachment,
-                resolveTarget = 0,
-                loadOp = WGPULoadOp_Clear,
-                storeOp = WGPUStoreOp_Store,
-                clearValue = WGPUColor(1.0, 0.0, 0.0, 1.0),
-            ),
-        ),
+        colorAttachments = cStruct(
+            WGPURenderPassColorAttachment;
+            view = outputAttachment,
+            resolveTarget = 0,
+            loadOp = WGPULoadOp_Clear,
+            storeOp = WGPUStoreOp_Store,
+            clearValue = WGPUColor(1.0, 0.0, 0.0, 1.0),
+        ) |> ptr,
         colorAttachmentCount = 1,
         depthStencilAttachment = C_NULL,
-    ) |> pointer_from_objref,
+    ) |> ptr,
 )
 
 
@@ -231,23 +173,23 @@ wgpuRenderPassEncoderEnd(renderPass)
 
 wgpuCommandEncoderCopyTextureToBuffer(
     encoder,
-    partialInit(
+    cStruct(
         WGPUImageCopyTexture;
         texture = texture,
-        miplevel = 0,
+        mipLevel = 0,
         origin = WGPUOrigin3D(0, 0, 0),
-    ) |> pointer_from_objref,
-    partialInit(
+    ) |> ptr,
+    cStruct(
         WGPUImageCopyBuffer;
         buffer = outputBuffer,
-        layout = partialInit(
+        layout = cStruct(
             WGPUTextureDataLayout;
             offset = 0,
             bytesPerRow = bufferDimensions.padded_bytes_per_row,
-            rowsPerImage = 0,
-        ),
-    ) |> pointer_from_objref,
-    textureExtent |> pointer_from_objref,
+            rowsPerImage = WGPU_COPY_STRIDE_UNDEFINED,
+        ) |> ptr |> unsafe_load,
+    ) |> ptr,
+    textureExtent |> ptr,
 )
 
 ## queue
@@ -256,7 +198,7 @@ queue = wgpuDeviceGetQueue(device[])
 ## commandBuffer
 cmdBuffer = wgpuCommandEncoderFinish(
     encoder,
-    pointer_from_objref(Ref(defaultInit(WGPUCommandBufferDescriptor))),
+    cStruct(WGPUCommandBufferDescriptor) |> ptr,
 )
 
 ## submit queue
@@ -278,7 +220,7 @@ print(asyncstatus[])
 
 ## device polling
 
-wgpuDevicePoll(device[], true)
+wgpuDevicePoll(device[], true, C_NULL)
 
 ## times
 times = convert(Ptr{UInt8}, wgpuBufferGetMappedRange(outputBuffer, 0, bufferSize))

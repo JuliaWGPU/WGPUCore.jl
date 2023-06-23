@@ -3,8 +3,9 @@ using WGPUCore
 using GLFW
 using WGPUNative
 using Images
+using Debugger
 
-WGPUCore.SetLogLevel(WGPULogLevel_Off)
+WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
 shaderSource = Vector{UInt8}(
     """
@@ -16,19 +17,18 @@ shaderSource = Vector{UInt8}(
         @builtin(position) pos: vec4<f32>,
     };
 
-    @stage(vertex)
+    @vertex
     fn vs_main(in: VertexInput) -> VertexOutput {
         var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0));
         let index = i32(in.vertex_index);
         let p: vec2<f32> = positions[index];
-
         var out: VertexOutput;
         out.pos = vec4<f32>(sin(p), 0.5, 1.0);
         out.color = vec4<f32>(p, 0.5, 1.0);
         return out;
     }
 
-    @stage(fragment)
+    @fragment
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return in.color;
     }
@@ -37,19 +37,16 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
+shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing));
 
 bindingLayouts = []
 bindings = []
 
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
-@info swapChainFormat
 presentContext = WGPUCore.getContext(canvas)
 ctxtSize = WGPUCore.determineSize(presentContext[]) .|> Int
 
@@ -87,23 +84,24 @@ renderPipeline = WGPUCore.createRenderPipeline(
     label = "RENDER PIPE LABEL ",
 )
 
-function drawFunction()
-    WGPUCore.draw(renderPass, 3, 1, 0, 0)
-    WGPUCore.end(renderPass)
-end
-
-WGPUCore.attachDrawFunction(canvas, drawFunction)
+# function drawFunction()
+    # WGPUCore.draw(renderPass, 3, 1, 0, 0)
+    # WGPUCore.end(renderPass)
+# end
+# 
+# WGPUCore.attachDrawFunction(canvas, drawFunction)
 
 try
     while !GLFW.WindowShouldClose(canvas.windowRef[])
-        nextTexture = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        nextTexture = WGPUCore.getCurrentTexture(presentContext[])
+        nextTextureRef = Ref(nextTexture)
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
         renderPassOptions =
             [
                 WGPUCore.GPUColorAttachments => [
                     :attachments => [
                         WGPUCore.GPUColorAttachment => [
-                            :view => nextTexture[],
+                            :view => nextTextureRef[],
                             :resolveTarget => C_NULL,
                             :clearValue => (0.0, 0.0, 0.0, 1.0),
                             :loadOp => WGPULoadOp_Clear,
