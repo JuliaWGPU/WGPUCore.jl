@@ -2,19 +2,15 @@ module WGPUCore
 
 
 using CEnum
-##
 
 include("utils.jl")
 
-##
 abstract type WGPUAbstractBackend end
 
-##
 function requestAdapter(::WGPUAbstractBackend, canvas, powerPreference)
     @error "Backend is not defined yet"
 end
 
-##
 mutable struct GPUAdapter
     name::Any
     features::Any
@@ -27,52 +23,47 @@ mutable struct GPUAdapter
     backend::Any
 end
 
-##
 mutable struct GPUDevice
     label::Any
     internal::Any
     adapter::Any
     features::Any
     queue::Any
-    descriptor::Any
+    queueDescriptor::Any
+    deviceDescriptor::Any
     requiredLimits::Any
     wgpuLimits::Any
     backend::Any
     supportedLimits::Any
 end
 
-##
 mutable struct WGPUBackend <: WGPUAbstractBackend
     adapter::WGPURef{WGPUAdapter}
     device::WGPURef{WGPUDevice}
 end
 
-##
 mutable struct GPUQueue
     label::Any
     internal::Any
     device::Any
 end
 
-##
 mutable struct GPUBuffer
     label::Any
     internal::Any
     device::Any
     size::Any
     usage::Any
+    desc::Any
 end
 
-##
 asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
 
-##
 function bufferCallback(status::WGPUBufferMapAsyncStatus, userData)
     asyncstatus[] = status
     return nothing
 end
 
-##
 function mapRead(gpuBuffer::GPUBuffer)
     bufferSize = gpuBuffer.size
     buffercallback =
@@ -106,7 +97,6 @@ function mapRead(gpuBuffer::GPUBuffer)
     return unsafe_wrap(Array{UInt8, 1}, data, bufferSize)
 end
 
-##
 function mapWrite(gpuBuffer::GPUBuffer, data)
     bufferSize = gpuBuffer.size
     @assert sizeof(data) == bufferSize
@@ -140,14 +130,12 @@ function mapWrite(gpuBuffer::GPUBuffer, data)
     return nothing
 end
 
-##
 defaultInit(::Type{WGPUBackend}) = begin
     adapter = defaultInit(GPUAdapter)
     device = defaultInit(GPUDevice)
     return WGPUBackend(WGPURef(adapter), WGPURef(device))
 end
 
-##
 function getAdapterCallback(adapter::WGPURef{WGPUAdapter})
     function request_adapter_callback(
         a::WGPURequestAdapterStatus,
@@ -161,7 +149,6 @@ function getAdapterCallback(adapter::WGPURef{WGPUAdapter})
     return request_adapter_callback
 end
 
-##
 function getDeviceCallback(device::WGPURef{WGPUDevice})
     function request_device_callback(
         a::WGPURequestDeviceStatus,
@@ -175,32 +162,31 @@ function getDeviceCallback(device::WGPURef{WGPUDevice})
     return request_device_callback
 end
 
-##
 adapter = WGPURef(defaultInit(WGPUAdapter))
 device = WGPURef(defaultInit(WGPUDevice))
 backend = WGPUBackend(adapter, device)
 
-##
 defaultInit(::Type{WGPUBackendType}) = WGPUBackendType_WebGPU
 
-##
 function requestAdapter(;
     canvas = nothing,
     powerPreference = defaultInit(WGPUPowerPreference),
 )
-    adapterExtras =
-        cStructPtr(
-            WGPUAdapterExtras;
-            chain = cStruct(
-                WGPUChainedStruct;
-                sType = WGPUSType(Int64(WGPUSType_AdapterExtras)),
-            ) |> ptr |> unsafe_load,
-        )
+    chain = cStruct(
+        WGPUChainedStruct;
+        sType = WGPUSType(Int64(WGPUSType_AdapterExtras)),
+    )
 
-    adapterOptions =
+
+    cAdapterExtras = cStruct(
+    	WGPUAdapterExtras;
+		chain = chain |> concrete
+   	)
+
+    cAdapterOptions =
         cStruct(
             WGPURequestAdapterOptions;
-            nextInChain = adapterExtras,
+            nextInChain = cAdapterExtras |> ptr,
             powerPreference = powerPreference,
             forceFallbackAdapter = false,
         )
@@ -219,34 +205,30 @@ function requestAdapter(;
 
     wgpuInstanceRequestAdapter(
     	getWGPUInstance(), 
-    	adapterOptions |> ptr, 
+    	cAdapterOptions |> ptr, 
     	requestAdapterCallback, 
    		adapter[]
 	)
 
-    c_propertiesPtr = cStructPtr(WGPUAdapterProperties)
+    cAdapterProperties = cStruct(WGPUAdapterProperties)
 
-    wgpuAdapterGetProperties(adapter[], c_propertiesPtr)
-    g = convert(Ptr{WGPUAdapterProperties}, c_propertiesPtr)
-    h = GC.@preserve c_propertiesPtr unsafe_load(g)
-    supportedLimitsPtr = cStructPtr(WGPUSupportedLimits;)
-    GC.@preserve supportedLimitsPtr wgpuAdapterGetLimits(adapter[], supportedLimitsPtr)
-    h = GC.@preserve supportedLimitsPtr unsafe_load(supportedLimitsPtr)
+    wgpuAdapterGetProperties(adapter[], cAdapterProperties |> ptr)
+    cSupportedLimits = cStruct(WGPUSupportedLimits;)
+    GC.@preserve cSupportedLimits wgpuAdapterGetLimits(adapter[], cSupportedLimits |> ptr)
     features = []
-    partialInit(
-        GPUAdapter;
-        name = "WGPU",
-        features = features,
-        internal = adapter,
-        limits = h.limits,
-        properties = c_propertiesPtr,
-        options = adapterOptions,
-        supportedLimits = supportedLimitsPtr,
-        extras = adapterExtras,
+    GPUAdapter(
+        "WGPU",
+        features,
+        adapter,
+        cSupportedLimits,
+        cAdapterProperties,
+        cAdapterOptions,
+        cSupportedLimits,
+        cAdapterExtras,
+        backend
     )
 end
 
-##
 function requestDevice(
     gpuAdapter::GPUAdapter;
     label = " DEVICE DESCRIPTOR ",
@@ -266,7 +248,7 @@ function requestDevice(
 
     deviceExtras = cStruct(
         WGPUDeviceExtras;
-        chain = chainObj |> ptr |> unsafe_load,
+        chain = chainObj |> concrete,
         tracePath = toCString(tracepath),
     )
 
@@ -287,7 +269,7 @@ function requestDevice(
             nextInChain = convert(Ptr{WGPUChainedStruct}, deviceExtras |> ptr),
             requiredFeaturesCount = 0,
             requiredLimits = (wgpuRequiredLimits |> ptr),
-            defaultQueue = wgpuQueueDescriptor |> ptr |> unsafe_load,
+            defaultQueue = wgpuQueueDescriptor |> concrete,
         )
 
     requestDeviceCallback = @cfunction(
@@ -307,47 +289,47 @@ function requestDevice(
 
     supportedLimits = cStruct(WGPUSupportedLimits;)
 
-    supportedLimitsPtr = supportedLimits |> ptr
-    wgpuDeviceGetLimits(device[], supportedLimitsPtr)
-    g = convert(Ptr{WGPUSupportedLimits}, supportedLimitsPtr)
-    h = GC.@preserve supportedLimitsPtr unsafe_load(g)
+    wgpuDeviceGetLimits(device[], supportedLimits |> ptr)
     features = []
     deviceQueue = WGPURef(wgpuDeviceGetQueue(device[]))
     queue = GPUQueue(" GPU QUEUE ", deviceQueue, nothing)
-    # GPUDevice("WGPU", backend.device, backend.adapter, features, h.limits, queue, wgpuQueueDescriptor, wgpuRequiredLimits, wgpuLimits)
-    partialInit(
-        GPUDevice;
-        label = "WGPU Device",
-        internal = device,
-        adapter = gpuAdapter,
-        features = features,
-        limits = h.limits,
-        queue = queue,
-        descriptor = wgpuQueueDescriptor,
-        requiredLimits = wgpuRequiredLimits,
-        supportedLimits = supportedLimits,
+
+    GPUDevice(
+        "WGPU Device",
+        device,
+        gpuAdapter,
+        features,
+        queue,
+        wgpuQueueDescriptor,
+        wgpuDeviceDescriptor,
+        wgpuRequiredLimits,
+        wgpuLimits,
+        supportedLimits,
+        backend,
     )
 end
 
 function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
     labelPtr = toCString(label)
+    desc = cStruct(
+        WGPUBufferDescriptor;
+        label = labelPtr,
+        size = bufSize,
+        usage = getEnum(WGPUBufferUsage, usage),
+        mappedAtCreation = mappedAtCreation,
+    )
     buffer = GC.@preserve labelPtr wgpuDeviceCreateBuffer(
         gpuDevice.internal[],
-        cStruct(
-            WGPUBufferDescriptor;
-            label = labelPtr,
-            size = bufSize,
-            usage = getEnum(WGPUBufferUsage, usage),
-            mappedAtCreation = mappedAtCreation,
-        ) |> ptr,
-    ) |> WGPURef
-    GPUBuffer(label, buffer, gpuDevice, bufSize, usage)
+        desc |> ptr,
+    ) |> Ref
+    GPUBuffer(label, buffer, gpuDevice, bufSize, usage, desc)
 end
+
 
 function getDefaultDevice(; backend = backend)
     adapter = WGPUCore.requestAdapter()
-    defaultDevice = requestDevice(adapter[])
-    return defaultDevice
+    device = requestDevice(adapter)
+    return device
 end
 
 flatten(x) = reshape(x, (:,))
@@ -373,15 +355,15 @@ function computeWithBuffers(
 
 end
 
-## 
 mutable struct GPUTexture
     label::Any
     internal::Any
     device::Any
+    texExtent::Any
     texInfo::Any
+    desc::Any
 end
 
-## BufferDimension
 mutable struct BufferDimensions
     height::UInt32
     width::UInt32
@@ -414,9 +396,8 @@ function createTexture(
             height = size[2],
             depthOrArrayLayers = size[3],
         )
-    texture = GC.@preserve label wgpuDeviceCreateTexture(
-        gpuDevice.internal[],
-        cStruct(
+    
+    textureDesc = cStruct(
             WGPUTextureDescriptor;
             label = toCString(label),
             size = textureExtent |> concrete,
@@ -425,8 +406,12 @@ function createTexture(
             dimension = dimension,
             format = format,
             usage = usage,
-        ) |> ptr,
-    ) |> Ref
+        ) 
+    
+    texture = GC.@preserve label wgpuDeviceCreateTexture(
+        gpuDevice.internal[],
+		textureDesc |> ptr,
+    )
 
     texInfo = Dict(
         "size" => size,
@@ -437,10 +422,9 @@ function createTexture(
         "usage" => usage,
     )
 
-    GPUTexture(label, texture, gpuDevice, texInfo)
+    GPUTexture(label, texture |> Ref, gpuDevice, textureExtent, texInfo, textureDesc)
 end
 
-##
 mutable struct GPUTextureView
     label::Any
     internal::Any
@@ -449,7 +433,8 @@ mutable struct GPUTextureView
     size::Any
     desc::Any
 end
-##
+
+
 function createView(gpuTexture::GPUTexture; dimension = nothing)
     gpuTextureInternal = gpuTexture.internal[]
     dimension = split(string(gpuTexture.texInfo["dimension"]), "_")[end]
@@ -473,10 +458,10 @@ function createView(gpuTexture::GPUTexture; dimension = nothing)
             mipLevelCount = 1, # TODO
             baseArrayLayer = 0, # TODO
             arrayLayerCount = last(texSize),  # TODO
-        ) |> ptr
+        )
     view = GC.@preserve gpuTextureInternal wgpuTextureCreateView(
         gpuTexture.internal[],
-        viewDescriptor,
+        viewDescriptor |> ptr,
     ) |> Ref
     return GPUTextureView(
         gpuTexture.label,
@@ -488,11 +473,11 @@ function createView(gpuTexture::GPUTexture; dimension = nothing)
     )
 end
 
-## Sampler Bits
 mutable struct GPUSampler
     label::Any
     internal::Any
     device::Any
+    desc::Any
 end
 
 function createSampler(
@@ -509,25 +494,25 @@ function createSampler(
     compare = WGPUCompareFunction_Undefined,
     maxAnisotropy = 1,
 )
-    sampler =
-        wgpuDeviceCreateSampler(
+	desc = cStruct(
+        WGPUSamplerDescriptor;
+        label = toCString(label),
+        addressModeU = addressModeU,
+        addressModeV = addressModeV,
+        addressModeW = addressModeW,
+        magFilter = magFilter,
+        minFilter = minFilter,
+        mipmapFilter = mipmapFilter,
+        lodMinClamp = lodMinClamp,
+        lodMaxClamp = lodMaxClamp,
+        compare = compare == nothing ? 0 : compare,
+        maxAnisotropy = maxAnisotropy,
+    )
+    sampler = wgpuDeviceCreateSampler(
             gpuDevice.internal[],
-            cStruct(
-                WGPUSamplerDescriptor;
-                label = toCString(label),
-                addressModeU = addressModeU,
-                addressModeV = addressModeV,
-                addressModeW = addressModeW,
-                magFilter = magFilter,
-                minFilter = minFilter,
-                mipmapFilter = mipmapFilter,
-                lodMinClamp = lodMinClamp,
-                lodMaxClamp = lodMaxClamp,
-                compare = compare == nothing ? 0 : compare,
-                maxAnisotropy = maxAnisotropy,
-            ) |> ptr,
+            desc |> ptr,
         ) |> Ref
-    return GPUSampler(label, sampler, gpuDevice)
+    return GPUSampler(label, sampler, gpuDevice, desc)
 end
 
 mutable struct GPUBindGroupLayout
@@ -542,11 +527,32 @@ abstract type WGPUEntryType end
 
 struct WGPUBufferEntry <: WGPUEntryType end
 
+struct GPUBufferEntry
+	entry
+	layout
+end
+
 struct WGPUSamplerEntry <: WGPUEntryType end
+
+struct GPUSamplerEntry
+	entry
+	layout
+end
 
 struct WGPUTextureEntry <: WGPUEntryType end
 
+struct GPUTextureEntry
+	entry
+	layout
+end
+
 struct WGPUStorageTextureEntry <: WGPUEntryType end
+
+struct GPUStorageTextureEntry
+	entry
+	layout
+end
+
 
 function createLayoutEntry(::Type{WGPUBufferEntry}; args...)
     # binding::Int,
@@ -562,7 +568,7 @@ function createLayoutEntry(::Type{WGPUBufferEntry}; args...)
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
         buffer = bufferBindingLayout |> concrete,
     )
-    return (entry, bufferBindingLayout)
+    return GPUBufferEntry(entry, bufferBindingLayout)
 end
 
 function createLayoutEntry(::Type{WGPUSamplerEntry}; args...)
@@ -579,7 +585,7 @@ function createLayoutEntry(::Type{WGPUSamplerEntry}; args...)
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
         sampler = samplerBindingLayout |> concrete,
     )
-    return (entry, samplerBindingLayout)
+    return GPUSamplerEntry(entry, samplerBindingLayout)
 end
 
 function createLayoutEntry(::Type{WGPUTextureEntry}; args...)
@@ -600,7 +606,7 @@ function createLayoutEntry(::Type{WGPUTextureEntry}; args...)
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
         texture = textureBindingLayout |> concrete,
     )
-    return (entry, textureBindingLayout)
+    return GPUTextureEntry(entry, textureBindingLayout)
 end
 
 function createLayoutEntry(::Type{WGPUStorageTextureEntry}; args...)
@@ -614,7 +620,7 @@ function createLayoutEntry(::Type{WGPUStorageTextureEntry}; args...)
         access = getEnum(WGPUStorageTextureAccess, args[:access]),
         viewDimension = getEnum(WGPUTextureViewDimension, args[:viewDimension]),
         format = getEnum(WGPUTextureFormat, args[:format]),
-    ),
+    )
 
     entry = cStruct(
         WGPUBindGroupLayoutEntry;
@@ -622,7 +628,7 @@ function createLayoutEntry(::Type{WGPUStorageTextureEntry}; args...)
         visibility = getEnum(WGPUShaderStage, args[:visibility]),
         storageTexture = storageTextureBindingLayout |> concrete
     )
-    return (entry, storageTextureBindingLayout)
+    return GPUStorageTexture(entry, storageTextureBindingLayout)
 end
 
 function createBindGroupEntry(::Type{GPUBuffer}; args...)
@@ -653,9 +659,15 @@ function createBindGroupEntry(::Type{GPUSampler}; args...)
     )
 end
 
+struct BindGroupLayoutEntryList
+	cEntries
+	layoutEntries
+end
+
 function makeLayoutEntryList(entries)
     @assert typeof(entries) <: Array "Entries should be an array"
     entryLen = length(entries)
+    layoutEntries = []
     cEntries = convert(
     	Ptr{WGPUBindGroupLayoutEntry},
     	Libc.malloc(sizeof(WGPUBindGroupLayoutEntry)*entryLen)
@@ -663,22 +675,27 @@ function makeLayoutEntryList(entries)
     if entryLen > 0
         for (idx, entry) in enumerate(entries)
         	entryCntxt = createLayoutEntry(entry.first; entry.second...)
-            unsafe_store!(cEntries, entryCntxt |> first |> concrete, idx)
+        	push!(layoutEntries, entryCntxt)
+            unsafe_store!(cEntries, entryCntxt.entry |> concrete, idx)
         end
     end
-    return unsafe_wrap(Array, cEntries, entryLen; own=false)
+    return BindGroupLayoutEntryList(
+    		unsafe_wrap(Array, cEntries, entryLen; own=false),
+    		layoutEntries
+    	)
+    		
 end
 
 function createBindGroupLayout(gpuDevice, label, entries)
-    @assert typeof(entries) <: Array "Entries should be an array"
-    count = length(entries)
+    @assert typeof(entries.cEntries) <: Array "Entries should be an array"
+    count = length(entries.cEntries)
     bindGroupLayout = C_NULL
     bindGroupLayoutDesc = nothing
     if count > 0
 		bindGroupLayoutDesc = cStruct(
 	       WGPUBindGroupLayoutDescriptor;
 	       label = toCString(label),
-	       entries = count == 0 ? C_NULL : entries |> pointer, # assuming array of entries
+	       entries = count == 0 ? C_NULL : entries.cEntries |> pointer, # assuming array of entries
 	       entryCount = count,
 	   	)
 
@@ -699,36 +716,46 @@ mutable struct GPUBindGroup
     desc::Any
 end
 
+struct BindGroupEntryList
+	cEntries
+	bgEntries
+end
+
 function makeBindGroupEntryList(entries)
     @assert typeof(entries) <: Array "Entries should be an array"
     entriesLen = length(entries)
+    bgEntries = []
     cEntries = convert(
     	Ptr{WGPUBindGroupEntry},
     	Libc.malloc(sizeof(WGPUBindGroupEntry)*entriesLen)
     )
     if entriesLen > 0
         for (idx, entry) in enumerate(entries)
-        	entryCntxt = createBindGroupEntry(entry.first; entry.second...)
-            unsafe_store!(cEntries, entryCntxt |> concrete, idx)
+        	entryCStruct = createBindGroupEntry(entry.first; entry.second...)
+        	push!(bgEntries, entryCStruct)
+            unsafe_store!(cEntries, entryCStruct |> concrete, idx)
         end
     end
-    return unsafe_wrap(Array, cEntries, entriesLen; own=false)
+    return BindGroupEntryList(
+    			unsafe_wrap(Array, cEntries, entriesLen; own=false),
+    			bgEntries
+			)
 end
 
 function createBindGroup(label, gpuDevice, bindingLayout, entries)
-    @assert typeof(entries) <: Array "Entries should be an array"
-    count = length(entries)
+    @assert typeof(entries.cEntries) <: Array "Entries should be an array"
+    count = length(entries.bgEntries)
     bindGroup = C_NULL
     bindGroupDesc = nothing
     if bindingLayout.internal[] != C_NULL && count > 0
-        bindGroupDesc = cStruct(
+        bindGroupDesc = GC.@preserve label cStruct(
 	        WGPUBindGroupDescriptor;
 	        label = toCString(label),
 	        layout = bindingLayout.internal[],
-	        entries = count == 0 ? C_NULL : entries |> pointer,
+	        entries = count == 0 ? C_NULL : entries.cEntries |> pointer,
 	        entryCount = count,
 	    )
-        bindGroup = GC.@preserve label wgpuDeviceCreateBindGroup(
+        bindGroup = wgpuDeviceCreateBindGroup(
             gpuDevice.internal[],
 			bindGroupDesc |> ptr
         )
@@ -738,11 +765,11 @@ end
 
 function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
     @assert length(bindings) == length(bindingLayouts)
-    cBindingLayoutsList = makeLayoutEntryList(bindingLayouts)
-    cBindingsList = makeBindGroupEntryList(bindings)
+    cBindingLayoutsCntxtList = makeLayoutEntryList(bindingLayouts)
+    cBindingsCntxtList = makeBindGroupEntryList(bindings)
     bindGroupLayout =
-        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList)
-    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList)
+        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsCntxtList.cEntries)
+    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsCntxtList.cEntries)
     return (bindGroupLayout, bindGroup)
 end
 
@@ -750,11 +777,14 @@ mutable struct GPUPipelineLayout
     label::Any
     internal::Any
     device::Any
-    layouts::Any
     descriptor::Any
+    bindGroup::Any
+    bindGroupLayout::Any
+    cBindingsLayoutsList
+    cBindingsList
 end
 
-function createPipelineLayout(gpuDevice, label, bindGroupLayoutObj)
+function createPipelineLayout(gpuDevice, label, bindingLayouts, bindings)
     # bindGroupLayoutArray = Ptr{WGPUBindGroupLayoutImpl}()
     # if bindGroupLayoutObj.internal[] != C_NULL
         # bindGroupLayoutArray = bindGroupLayoutObj.internal[]
@@ -762,9 +792,15 @@ function createPipelineLayout(gpuDevice, label, bindGroupLayoutObj)
     # else
     	# layoutCount = 0
     # end
+    @assert length(bindings) == length(bindingLayouts)
+    cBindingLayoutsList = makeLayoutEntryList(bindingLayouts)
+    cBindingList = makeBindGroupEntryList(bindings)
+    bindGroupLayout =
+        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList)
+    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingList)
     bindGroupLayoutArray = []
-    if bindGroupLayoutObj.internal[] != C_NULL
-        bindGroupLayoutArray = map((x) -> x.internal[], [bindGroupLayoutObj])
+    if bindGroupLayout.internal[] != C_NULL
+        bindGroupLayoutArray = map((x) -> x.internal[], [bindGroupLayout])
         layoutCount = length(bindGroupLayoutArray) # will always be one
     else
     	layoutCount = 0
@@ -776,20 +812,32 @@ function createPipelineLayout(gpuDevice, label, bindGroupLayoutObj)
         bindGroupLayoutCount = layoutCount,
     )
     pipelineLayout =
-        wgpuDeviceCreatePipelineLayout(gpuDevice.internal[], pipelineDescriptor |> ptr) |> Ref
+        wgpuDeviceCreatePipelineLayout(gpuDevice.internal[], pipelineDescriptor |> ptr)
     GPUPipelineLayout(
         label,
-        pipelineLayout,
+        pipelineLayout |> Ref,
         gpuDevice,
-        bindGroupLayoutObj,
         pipelineDescriptor,
+        bindGroup,
+        bindGroupLayout,
+        cBindingLayoutsList,
+        cBindingList
     )
 end
 
 mutable struct GPUShaderModule
     label::Any
     internal::Any
+    desc::Any
     device::Any
+end
+
+mutable struct WGSLSrcInfo
+	shaderModuleDesc
+	buffer
+	chain
+	wgslModuleDesc
+	name
 end
 
 function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
@@ -797,10 +845,10 @@ function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
    		WGPUChainedStruct;
    		next = C_NULL,
    		sType = WGPUSType_ShaderModuleWGSLDescriptor
-	) |> ptr |> unsafe_load
+	) 
     wgslDescriptor = cStruct(
     	WGPUShaderModuleWGSLDescriptor;
-		chain = chain,
+		chain = chain |> concrete,
     	code = pointer(buffer)
     )
     a = cStruct(
@@ -808,7 +856,7 @@ function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
         nextInChain = wgslDescriptor |> ptr ,
         label = toCString(name),
     )
-    return (a, buffer, chain, wgslDescriptor, names)
+    return WGSLSrcInfo(a, buffer, chain, wgslDescriptor, name)
 end
 
 function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
@@ -817,10 +865,10 @@ function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
    		WGPUChainedStruct;
    		next = C_NULL,
    		sType = WGPUSType_ShaderModuleWGSLDescriptor
-	) |> ptr |> unsafe_load
+	) 
     wgslDescriptor = cStruct(
     	WGPUShaderModuleWGSLDescriptor;
-		chain = chain,
+		chain = chain |> concrete,
     	code = pointer(b)
     )
     a = cStruct(
@@ -828,7 +876,7 @@ function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
         nextInChain = wgslDescriptor |> ptr,
         label = toCString(name),
     )
-    return (a, b, chain, wgslDescriptor, names)
+    return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
 end
 
 function loadWGSL(file::IOStream; name = " UnknownShader ")
@@ -837,10 +885,10 @@ function loadWGSL(file::IOStream; name = " UnknownShader ")
    		WGPUChainedStruct;
    		next = C_NULL,
    		sType = WGPUSType_ShaderModuleWGSLDescriptor
-	) |> ptr |> unsafe_load
+	) 
     wgslDescriptor = cStruct(
     	WGPUShaderModuleWGSLDescriptor;
-		chain = chain,
+		chain = chain |> concrete,
     	code = pointer(b)
     )
     a = cStruct(
@@ -848,16 +896,16 @@ function loadWGSL(file::IOStream; name = " UnknownShader ")
         nextInChain = wgslDescriptor |> ptr,
         label = toCString(name == "UnknownShader" ? file.name : name),
     )
-    return (a, b, chain, wgslDescriptor, name)
+    return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
 end
 
 function createShaderModule(gpuDevice, label, shadercode, sourceMap, hints)
     shader = GC.@preserve shadercode wgpuDeviceCreateShaderModule(
         gpuDevice.internal[],
         shadercode |> ptr,
-    ) |> Ref
+    )
 
-    GPUShaderModule(label, shader, gpuDevice)
+    GPUShaderModule(label, shader |> Ref, shadercode, gpuDevice)
 end
 
 mutable struct GPUComputePipeline
@@ -915,7 +963,10 @@ end
 
 mutable struct GPUVertexBufferLayout
     internal::Any
-    strongRefs::Any
+    attributeArgs
+    args
+    attributeArrayPtr
+    attributeArray
 end
 
 function createEntry(::Type{GPUVertexBufferLayout}; args...)
@@ -939,14 +990,18 @@ function createEntry(::Type{GPUVertexBufferLayout}; args...)
         stepMode = getEnum(WGPUVertexStepMode, args[:stepMode]),
         attributes = attributeArrayPtr,
         attributeCount = numAttrs,
-        xref1 = attributeArrayPtr |> Ref,
     )
-    return GPUVertexBufferLayout(aref, (attributeArgs, args, attributeArrayPtr |> Ref, attributeObjs .|> Ref))
+    return GPUVertexBufferLayout(aref, attributeArgs, args, attributeArrayPtr, attributeObjs)
 end
 
 mutable struct GPUVertexState
     internal::Any
-    strongRefs::Any
+    shader
+    buffers
+    bufferDescriptor
+    bufferArray
+    entryPoint
+    args
 end
 
 function createEntry(::Type{GPUVertexState}; args...)
@@ -958,12 +1013,12 @@ function createEntry(::Type{GPUVertexState}; args...)
     	Libc.malloc(sizeof(WGPUVertexBufferLayout)*bufferLen)
     )
     
-    buffersArrayObjs = GPUVertexBufferLayout[] |> Ref
+    buffersArrayObjs = GPUVertexBufferLayout[]
     entryPointArg = args[:entryPoint]
 
     for (idx, buffer) in enumerate(buffers)
         obj = createEntry(buffer.first; buffer.second...)
-        push!(buffersArrayObjs[], obj )
+        push!(buffersArrayObjs, obj)
         unsafe_store!(bufferDescArrayPtr, obj.internal |> concrete, idx)
     end
 
@@ -980,10 +1035,17 @@ function createEntry(::Type{GPUVertexState}; args...)
         entryPoint = toCString(entryPointArg),
         buffers = length(buffers) == 0 ? C_NULL : bufferDescArrayPtr,
         bufferCount = length(buffers),
-        xref1 = bufferDescArrayPtr,
-        xref2 = shader,
-    ) |> Ref
-    GPUVertexState(aRef, (shader, buffers, bufferDescArrayPtr, buffersArrayObjs .|> Ref, entryPointArg, args))
+    )
+    
+    GPUVertexState(
+    	aRef |> Ref, 
+    	shader, 
+    	buffers, 
+    	bufferDescArrayPtr, 
+    	buffersArrayObjs, 
+    	entryPointArg, 
+    	args
+   	)
 end
 
 mutable struct GPUPrimitiveState
@@ -998,8 +1060,8 @@ function createEntry(::Type{GPUPrimitiveState}; args...)
         stripIndexFormat = getEnum(WGPUIndexFormat, args[:stripIndexFormat]),
         frontFace = getEnum(WGPUFrontFace, args[:frontFace]), # TODO 
         cullMode = getEnum(WGPUCullMode, args[:cullMode]),
-    ) |> Ref
-    return GPUPrimitiveState(a, args)
+    ) 
+    return GPUPrimitiveState(a |> Ref, args)
 end
 
 mutable struct GPUStencilFaceState
@@ -1009,7 +1071,13 @@ end
 
 
 defaultInit(::Type{WGPUStencilFaceState}) = begin
-    cStruct(WGPUStencilFaceState; compare = WGPUCompareFunction_Always)
+    cStruct(
+    	WGPUStencilFaceState; 
+    	compare = WGPUCompareFunction_Always,
+    	failOp = WGPUStencilOperation_Keep,
+    	depthFailOp = WGPUStencilOperation_Keep,
+    	passOp = WGPUStencilOperation_Keep
+   	)
 end
 
 mutable struct GPUDepthStencilState
@@ -1018,21 +1086,22 @@ mutable struct GPUDepthStencilState
 end
 
 function createEntry(::Type{GPUDepthStencilState}; args...)
-    aref = nothing
+	a = CStruct(WGPUDepthStencilState)
     if length(args) > 0 && args != C_NULL
-        aref =
-            cStruct(
-                WGPUDepthStencilState;
-                format = args[:format],
-                depthWriteEnabled = args[:depthWriteEnabled],
-                depthCompare = args[:depthCompare],
-                stencilReadMask = get(args, :stencilReadMask, 0xffffffff),
-                stencilWriteMask = get(args, :stencilWriteMask, 0xffffffff),
-            ) |> Ref
+	    a.format = args[:format]
+	    a.depthWriteEnabled = args[:depthWriteEnabled]
+	    a.depthCompare = args[:depthCompare]
+	    a.stencilReadMask = get(args, :stencilReadMask, 0xffffffff)
+	    a.stencilWriteMask = get(args, :stencilWriteMask, 0xffffffff)
+	    a.stencilFront = defaultInit(WGPUStencilFaceState) |> concrete
+	    a.stencilBack = defaultInit(WGPUStencilFaceState) |> concrete
+	    a.depthBias = 0 # TODO
+	    a.depthBiasSlopeScale = 0 # TODO
+	    a.depthBiasClamp = 0 # TODO
     else
-        aref = C_NULL |> Ref
+        setfield!(a, :ptr, Ptr{WGPUDepthStencilState}(0))
     end
-    return GPUDepthStencilState(aref, args |> Ref)
+    return GPUDepthStencilState(a |> Ref, args)
 end
 
 mutable struct GPUMultiSampleState
@@ -1047,8 +1116,8 @@ function createEntry(::Type{GPUMultiSampleState}; args...)
             count = args[:count],
             mask = args[:mask],
             alphaToCoverageEnabled = args[:alphaToCoverageEnabled],
-        ) |> Ref
-    return GPUMultiSampleState(a, args)
+        )
+    return GPUMultiSampleState(a |> Ref, args)
 end
 
 mutable struct GPUBlendComponent
@@ -1062,8 +1131,8 @@ function createEntry(::Type{GPUBlendComponent}; args...)
         srcFactor = getEnum(WGPUBlendFactor, args[:srcFactor]),
         dstFactor = getEnum(WGPUBlendFactor, args[:dstFactor]),
         operation = getEnum(WGPUBlendOperation, args[:operation]),
-    )
-    return GPUBlendComponent(a, args)
+    ) 
+    return GPUBlendComponent(a |> Ref, args)
 end
 
 mutable struct GPUBlendState
@@ -1073,7 +1142,7 @@ end
 
 function createEntry(::Type{GPUBlendState}; args...)
     a = cStruct(WGPUBlendState; color = args[:color], alpha = args[:alpha])
-    return GPUBlendState(a, args)
+    return GPUBlendState(a |> Ref, args)
 end
 
 mutable struct GPUColorTargetState
@@ -1087,18 +1156,18 @@ function createEntry(::Type{GPUColorTargetState}; args...)
     alphaEntry = createEntry(GPUBlendComponent; args[:alpha]...)
     # blendArgs = [:color => colorEntry |> concrete, :alpha => alphaEntry |> concrete]
     blend = CStruct(WGPUBlendState)
-    blend.color = colorEntry.internal |> concrete
-    blend.alpha = alphaEntry.internal |> concrete
+    blend.color = colorEntry.internal[] |> concrete
+    blend.alpha = alphaEntry.internal[] |> concrete
     kargs[:writeMask] = get(kargs, :writeMask, WGPUColorWriteMask_All)
     aref = GC.@preserve args blend cStruct(
         WGPUColorTargetState;
         format = kargs[:format],
         blend = blend |> ptr,
         writeMask = kargs[:writeMask],
-    ) |> Ref
+    )
     return GPUColorTargetState(
-        aref,
-        (blend, blend, colorEntry, alphaEntry, args, kargs),
+        aref |> Ref,
+        (blend |> Ref, colorEntry, alphaEntry, args, kargs),
     )
 end
 
@@ -1124,16 +1193,16 @@ function createEntry(::Type{GPUFragmentState}; args...)
 
     entryPointArg = args[:entryPoint]
     shader = args[:_module]
-    shaderInternal = shader.internal
-    aref = GC.@preserve entryPointArg ctargets shaderInternal cStruct(
+    aref = GC.@preserve entryPointArg ctargets shader cStruct(
         WGPUFragmentState;
-        _module = shaderInternal[],
+        _module = shader.internal[],
         entryPoint = toCString(entryPointArg),
         targets = ctargets,
         targetCount = targetsLen,
-    ) |> Ref
+    ) 
+    
     return GPUFragmentState(
-        aref,
+        aref |> Ref,
         (
             aref,
             args,
@@ -1143,7 +1212,7 @@ function createEntry(::Type{GPUFragmentState}; args...)
             ctargets |> Ref,
             targetObjs |> Ref,
             entryPointArg,
-            shaderInternal,
+            shader,
         ),
     )
 end
@@ -1171,30 +1240,29 @@ function createRenderPipeline(
     renderArgs = Dict()
     for state in renderpipeline
         obj = createEntry(state.first; state.second...)
-        @info obj
-        renderArgs[state.first] = obj.internal
+        renderArgs[state.first] = obj
     end
 
-    vertexState = renderArgs[GPUVertexState]
-    primitiveState = renderArgs[GPUPrimitiveState]
-    depthStencilState = renderArgs[GPUDepthStencilState]
-    multiSampleState = renderArgs[GPUMultiSampleState]
-    fragmentState = renderArgs[GPUFragmentState]
+    vertexState = renderArgs[GPUVertexState].internal
+    primitiveState = renderArgs[GPUPrimitiveState].internal
+    depthStencilState = renderArgs[GPUDepthStencilState].internal
+    multiSampleState = renderArgs[GPUMultiSampleState].internal
+    fragmentState = renderArgs[GPUFragmentState].internal
 
-    pipelineDesc = GC.@preserve label cStruct(
+    pipelineDesc = GC.@preserve vertexState primitiveState depthStencilState multiSampleState fragmentState label  cStruct(
         WGPURenderPipelineDescriptor;
         label = toCString(label),
         layout = pipelinelayout.internal[],
         vertex = vertexState[] |> concrete,
         primitive = primitiveState[] |> concrete,
         depthStencil = let ds = depthStencilState[]
-        	 ds == C_NULL ? C_NULL : ds |> ptr 
-      	end,
+         	 ds == C_NULL ? C_NULL : ds |> ptr 
+       	end,
         multisample = multiSampleState[] |> concrete,
         fragment = fragmentState[] |> ptr,
     )
 
-    renderpipeline = GC.@preserve pipelineDesc wgpuDeviceCreateRenderPipeline(
+    renderpipeline = GC.@preserve pipelineDesc vertexState primitiveState depthStencilState multiSampleState fragmentState wgpuDeviceCreateRenderPipeline(
         gpuDevice.internal[],
         pipelineDesc |> ptr,
     ) |> Ref
@@ -1202,37 +1270,41 @@ function createRenderPipeline(
     return GPURenderPipeline(
         label,
         renderpipeline,
-        pipelineDesc |> Ref,
+        pipelineDesc,
         renderArgs,
         gpuDevice,
-        pipelinelayout |> Ref,
-        vertexState |> Ref,
-        primitiveState |> Ref,
-        depthStencilState |> Ref,
-        multiSampleState |> Ref,
-        fragmentState |> Ref,
+        pipelinelayout,
+        vertexState,
+        primitiveState,
+        depthStencilState,
+        multiSampleState,
+        fragmentState,
     )
 end
 
 mutable struct GPUColorAttachments
     internal::Any
-    strongRefs::Any
+    attachmentObjs
+    args
 end
 
 mutable struct GPUColorAttachment
     internal::Any
-    strongRefs::Any
+    textureView::Any
+    args
 end
 
 
 mutable struct GPUDepthStencilAttachments
     internal::Any
-    strongRefs::Any
+    attachmentObjs::Any
+    args
 end
 
 mutable struct GPUDepthStencilAttachment
     internal::Any
-    strongRefs::Any
+    args
+    depthView
 end
 
 mutable struct GPURenderPassEncoder
@@ -1254,19 +1326,23 @@ function createEntry(::Type{GPUColorAttachment}; args...)
         loadOp = args[:loadOp],
         storeOp = args[:storeOp],
     )
-    return GPUColorAttachment(a, (args, textureView) .|> Ref)
+    return GPUColorAttachment(a |> Ref, textureView, args)
 end
 
 
 function createEntry(::Type{GPUColorAttachments}; args...)
-    attachments = WGPURenderPassColorAttachment[]
+	attachmentsArg = get(args, :attachments, [])
+    attachments = convert(
+    	Ptr{WGPURenderPassColorAttachment},
+    	Libc.malloc(sizeof(WGPURenderPassColorAttachment)*length(attachmentsArg))
+    )
     attachmentObjs = GPUColorAttachment[]
-    for attachment in get(args, :attachments, [])
+    for (idx, attachment) in enumerate(attachmentsArg)
         obj = createEntry(attachment.first; attachment.second...) # TODO MallocInfo
         push!(attachmentObjs, obj)
-        push!(attachments, obj.internal |> concrete)
+        unsafe_store!(attachments, obj.internal[] |> concrete, idx)
     end
-    return GPUColorAttachments(attachments |> Ref, (attachments, attachmentObjs) .|> Ref)
+    return GPUColorAttachments(attachments |> Ref, attachmentObjs, args)
 end
 
 
@@ -1280,22 +1356,28 @@ function createEntry(::Type{GPUDepthStencilAttachment}; args...)
         depthStoreOp = args[:depthStoreOp],
         stencilLoadOp = get(args, :stencilLoadOp, WGPULoadOp_Clear),
         stencilStoreOp = get(args, :stencilStoreOp, WGPUStoreOp_Store),
-    ) |> Ref
-    return GPUDepthStencilAttachment(a, (args, depthview) .|> Ref)
+    )
+    return GPUDepthStencilAttachment(a, args, depthview)
 end
 
 
 function createEntry(::Type{GPUDepthStencilAttachments}; args...)
-    attachments = WGPURenderPassDepthStencilAttachment[]
+	attachmentArgs = get(args, :attachments, [])
+	attachmentLen = length(attachmentArgs)
+	attachmentsPtr = convert(
+		Ptr{WGPURenderPassDepthStencilAttachment},
+		Libc.malloc(sizeof(WGPURenderPassDepthStencilAttachment)*attachmentLen)
+	)
     attachmentObjs = GPUDepthStencilAttachment[]
-    for attachment in get(args, :attachments, [])
+    for (idx, attachment) in enumerate(attachmentArgs)
         obj = createEntry(attachment.first; attachment.second...) # TODO MallocInfo
         push!(attachmentObjs, obj)
-        push!(attachments, obj.internal[] |> concrete)
+        unsafe_store!(attachmentsPtr, obj.internal |> concrete, idx)
     end
     return GPUDepthStencilAttachments(
-        attachments |> Ref,
-        (attachments, attachmentObjs) .|> Ref,
+        attachmentsPtr |> Ref,
+        attachmentObjs,
+        args
     )
 end
 
@@ -1303,6 +1385,7 @@ mutable struct GPUCommandBuffer
     label::Any
     internal::Any
     device::Any
+    desc::Any
 end
 
 
@@ -1331,11 +1414,11 @@ function createCommandEncoder(gpuDevice, label)
     cmdEncDesc = GC.@preserve label cStruct(
         WGPUCommandEncoderDescriptor;
         label = toCString(label),
-    ) |> ptr
+    )
     commandEncoder =
         wgpuDeviceCreateCommandEncoder(
             gpuDevice.internal[],
-            cmdEncDesc,
+            cmdEncDesc |> ptr,
         ) |> Ref
     return GPUCommandEncoder(label, commandEncoder, gpuDevice, cmdEncDesc)
 end
@@ -1348,8 +1431,8 @@ function beginComputePass(
     desc =
         GC.@preserve label cStruct(
         	WGPUComputePassDescriptor; label = toCString(label)
-       	) |> ptr
-    computePass = wgpuCommandEncoderBeginComputePass(cmdEncoder.internal[], desc) |> Ref
+       	)
+    computePass = wgpuCommandEncoderBeginComputePass(cmdEncoder.internal[], desc |> ptr) |> Ref
     GPUComputePassEncoder(label, computePass, cmdEncoder, desc)
 end
 
@@ -1369,21 +1452,21 @@ function beginRenderPass(
         WGPURenderPassDescriptor;
         label = toCString(label),
         colorAttachments = let ca = colorAttachmentsIn
-            length(ca.internal[]) > 0 ? pointer(ca.internal[]) : C_NULL
+            length(ca.internal[]) > 0 ? ca.internal[] : C_NULL
         end,
         colorAttachmentCount = length(colorAttachmentsIn.internal[]),
         depthStencilAttachment = let da = depthStencilAttachmentIn
-            length(da.internal[]) > 0 ? pointer(da.internal[]) : C_NULL
-        end,
-    ) |> ptr
-    renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder.internal[], desc) |> WGPURef
+                    length(da.attachmentObjs) > 0 ? da.internal[] : C_NULL
+                end,
+    )
+    renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder.internal[], desc |> ptr) |> Ref
     GPURenderPassEncoder(
         label,
         renderPass,
         renderPipelinePairs,
         cmdEncoder,
         desc,
-        renderArgs |> Ref,
+        renderArgs |> Ref, # TODO GCCHECK
     )
 end
 
@@ -1425,23 +1508,24 @@ function copyBufferToTexture(
             WGPUImageCopyTexture;
             texture = source[:texture].internal[],
             mipLevel = get(source, :mipLevel, 0),
-            origin = cOrigin,
+            origin = cOrigin |> concrete,
             aspect = getEnum(WGPUTextureAspect, "All"),
-        ) |> ptr
+        )
+    texLayout = cStruct(WGPUTextureDataLayout; destination[:layout]...)
     cSource =
         cStruct(
             WGPUImageCopyBuffer;
             buffer = destination[:buffer].internal[],
-            layout = cStruct(WGPUTextureDataLayout; destination[:layout]...),
-        ) |> ptr
-  
-    cCopySize = cStruct(WGPUExtent3D; copy...) |> ptr
+            layout = texLayout |> concrete,
+        )
+    
+    cCopySize = cStruct(WGPUExtent3D; copySize...)
 
     wgpuCommandEncoderCopyBufferToTexture(
         cmdEncoder.internal[],
-        cSource,
-        cDestination,
-        cCopySize,
+        cSource  |> ptr,
+        cDestination  |> ptr,
+        cCopySize |> ptr,
     )
 end
 
@@ -1464,23 +1548,24 @@ function copyTextureToBuffer(
             mipLevel = get(source, :mipLevel, 0),
             origin = cOrigin |> concrete,
             aspect = getEnum(WGPUTextureAspect, "All"),
-        ) |> ptr
+        )
+   	textureLayout =	cStruct(
+            WGPUTextureDataLayout;
+            destination[:layout]..., # should document these obscure
+        )
     cDestination =
         cStruct(
             WGPUImageCopyBuffer;
             buffer = destination[:buffer].internal[],
-            layout = cStruct(
-                WGPUTextureDataLayout;
-                destination[:layout]..., # should document these obscure
-            ) |> concrete,
-        ) |> ptr
-    cCopySize = cStruct(WGPUExtent3D; copySize...) |> ptr
+            layout = textureLayout  |> concrete,
+        )
+    cCopySize = cStruct(WGPUExtent3D; copySize...)
 
     wgpuCommandEncoderCopyTextureToBuffer(
         cmdEncoder.internal[],
-        cSource,
-        cDestination,
-        cCopySize,
+        cSource  |> ptr,
+        cDestination  |> ptr,
+        cCopySize |> ptr,
     )
 end
 
@@ -1491,46 +1576,47 @@ function copyTextureToTexture(
     copySize::Dict{Symbol,Int64},
 )
     origin1 = get(source, :origin, [:x => 0, :y => 0, :z => 0])
-    cOrigin1 = cStruct(WGPUOrigin3D; origin1...) |> concrete
+    cOrigin1 = cStruct(WGPUOrigin3D; origin1...)
 
     cSource =
         cStruct(
             WGPUImageCopyTexture;
             texture = source[:texture].internal[],
             mipLevel = get(source, :mipLevel, 0),
-            origin = COrigin1,
-        ) |> ptr
+            origin = cOrigin1  |> concrete,
+        )
 
     origin2 = get(destination, :origin, [:x => 0, :y => 0, :z => 0])
 
-    cOrigin2 = cStruct(WGPUOrigin3D; origin2...) |> concrete
+    cOrigin2 = cStruct(WGPUOrigin3D; origin2...)
 
     cDestination =
         cStruct(
             WGPUImageCopyTexture;
             texture = destination[:texture].internal[],
             mipLevel = get(destination, :mipLevel, 0),
-            origin = cOrigin2,
-        ) |> ptr
+            origin = cOrigin2  |> concrete,
+        )
 
-    cCopySize = cStruct(WGPUExtent3D; copySize...) |> ptr
+    cCopySize = cStruct(WGPUExtent3D; copySize...)
 
     wgpuCommandEncoderCopyTextureToTexture(
         cmdEncoder.internal[],
-        cSource,
-        cDestination,
-        cCopySize,
+        cSource  |> ptr,
+        cDestination  |> ptr,
+        cCopySize  |> ptr,
     )
 
 end
 
 function finish(cmdEncoder::GPUCommandEncoder; label = " CMD ENCODER COMMAND BUFFER ")
+	desc = cStruct(WGPUCommandBufferDescriptor; label = toCString(label))
     cmdEncoderFinish = wgpuCommandEncoderFinish(
         cmdEncoder.internal[],
-        cStruct(WGPUCommandBufferDescriptor; label = toCString(label)) |> ptr,
+        desc |> ptr,
     )
     cmdEncoder.internal[] = C_NULL # Just to avoid 'Cannot remove a vacant resource'
-    return GPUCommandBuffer(label, Ref(cmdEncoderFinish), cmdEncoder)
+    return GPUCommandBuffer(label, Ref(cmdEncoderFinish), cmdEncoder, desc)
 end
 
 
@@ -1566,7 +1652,7 @@ function setBindGroup(
         index,
         bindGroup.internal[],
         offsetcount,
-        (offsetcount == 0) ? C_NULL : pointer(dynamicOffsetsData),
+        (offsetcount == 0) ? C_NULL : pointer(dynamicOffsetsData), # TODO GCCHECK
     )
     return nothing
 end
@@ -1585,7 +1671,7 @@ function setBindGroup(
         index,
         bindGroup.internal[],
         offsetcount,
-        offsetcount == 0 ? C_NULL : pointer(dynamicOffsetsData),
+        offsetcount == 0 ? C_NULL : pointer(dynamicOffsetsData), # TODO GCCHECK
     )
     return nothing
 end
@@ -1751,7 +1837,7 @@ function writeTexture(queue::GPUQueue; args...)
     destination =
         cStruct(
             WGPUImageCopyTexture;
-            texture = texture[].internal[],
+            texture = texture.internal[],
             mipLevel = mipLevel,
             origin = cOrigin[],
         ) 
@@ -1776,8 +1862,9 @@ function writeTexture(queue::GPUQueue; args...)
             depthOrArrayLayers = texSize[3],
         ) 
     texData = args[:textureData]
-    texDataPtr = pointer(texData[])
-    dataLength = length(texData[])
+    dataLength = length(texData)
+    texDataPtr = convert(Ptr{eltype(texData)}, Libc.malloc(sizeof(texData)))
+    unsafe_copyto!(texDataPtr, pointer(texData), dataLength)
     GC.@preserve texDataPtr wgpuQueueWriteTexture(
         queue.internal[],
         destination |> ptr,
@@ -2054,7 +2141,6 @@ function Base.setproperty!(device::GPUDevice, s::Symbol, value)
     end
 end
 
-# TODO 
 function isdestroyable()
 	
 end
