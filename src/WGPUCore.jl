@@ -11,6 +11,13 @@ function requestAdapter(::WGPUAbstractBackend, canvas, powerPreference)
     @error "Backend is not defined yet"
 end
 
+abstract type Droppable end
+
+# abstract type FixedDroppable <: Droppable end
+# abstract type ReusableDroppable <: Droppable end
+# abstract type GlobalDroppable <: Droppable end
+# abstract type LibcDroppable <: Droppable end
+
 mutable struct GPUAdapter
     name::Any
     features::Any
@@ -48,7 +55,7 @@ mutable struct GPUQueue
     device::Any
 end
 
-mutable struct GPUBuffer
+mutable struct GPUBuffer <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -90,9 +97,8 @@ function mapRead(gpuBuffer::GPUBuffer)
     src_ptr =
         convert(Ptr{UInt8}, wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize))
 	
-    GC.@preserve src_ptr begin
-        unsafe_copyto!(data, src_ptr, bufferSize)
-    end
+    GC.@preserve src_ptr unsafe_copyto!(data, src_ptr, bufferSize)
+    
     wgpuBufferUnmap(gpuBuffer.internal[])
     return unsafe_wrap(Array{UInt8, 1}, data, bufferSize)
 end
@@ -123,9 +129,8 @@ function mapWrite(gpuBuffer::GPUBuffer, data)
     src_ptr = wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize)
     src_ptr = convert(Ptr{UInt8}, src_ptr)
     dst_ptr = pointer(data)
-    GC.@preserve src_ptr dst_ptr begin
-        unsafe_copyto!(src_ptr, pointer(data), bufferSize)
-    end
+    GC.@preserve src_ptr dst_ptr unsafe_copyto!(src_ptr, pointer(data), bufferSize)
+
     wgpuBufferUnmap(gpuBuffer.internal)
     return nothing
 end
@@ -355,7 +360,7 @@ function computeWithBuffers(
 
 end
 
-mutable struct GPUTexture
+mutable struct GPUTexture <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -425,7 +430,7 @@ function createTexture(
     GPUTexture(label, texture |> Ref, gpuDevice, textureExtent, texInfo, textureDesc)
 end
 
-mutable struct GPUTextureView
+mutable struct GPUTextureView <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -473,7 +478,7 @@ function createView(gpuTexture::GPUTexture; dimension = nothing)
     )
 end
 
-mutable struct GPUSampler
+mutable struct GPUSampler <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -515,7 +520,7 @@ function createSampler(
     return GPUSampler(label, sampler, gpuDevice, desc)
 end
 
-mutable struct GPUBindGroupLayout
+mutable struct GPUBindGroupLayout <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -707,7 +712,7 @@ function createBindGroupLayout(gpuDevice, label, entries)
     GPUBindGroupLayout(label, Ref(bindGroupLayout), gpuDevice, entries, bindGroupLayoutDesc)
 end
 
-mutable struct GPUBindGroup
+mutable struct GPUBindGroup <: Droppable
     label::Any
     internal::Any
     layout::Any
@@ -773,7 +778,7 @@ function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
     return (bindGroupLayout, bindGroup)
 end
 
-mutable struct GPUPipelineLayout
+mutable struct GPUPipelineLayout <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -825,7 +830,7 @@ function createPipelineLayout(gpuDevice, label, bindingLayouts, bindings)
     )
 end
 
-mutable struct GPUShaderModule
+mutable struct GPUShaderModule <: Droppable
     label::Any
     internal::Any
     desc::Any
@@ -908,7 +913,7 @@ function createShaderModule(gpuDevice, label, shadercode, sourceMap, hints)
     GPUShaderModule(label, shader |> Ref, shadercode, gpuDevice)
 end
 
-mutable struct GPUComputePipeline
+mutable struct GPUComputePipeline <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -916,7 +921,7 @@ mutable struct GPUComputePipeline
     desc::Any
 end
 
-mutable struct ComputeStage
+mutable struct ComputeStage <: Droppable
     internal::Any
     entryPoint::Any
 end
@@ -1217,7 +1222,7 @@ function createEntry(::Type{GPUFragmentState}; args...)
     )
 end
 
-mutable struct GPURenderPipeline
+mutable struct GPURenderPipeline <: Droppable
     label::Any
     internal::Any
     descriptor::Any
@@ -1313,7 +1318,6 @@ mutable struct GPURenderPassEncoder
     pipeline::Any
     cmdEncoder::Any
     desc::Any
-    renderArgs::Any
 end
 
 function createEntry(::Type{GPUColorAttachment}; args...)
@@ -1381,7 +1385,7 @@ function createEntry(::Type{GPUDepthStencilAttachments}; args...)
     )
 end
 
-mutable struct GPUCommandBuffer
+mutable struct GPUCommandBuffer <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -1394,7 +1398,7 @@ function createCommandBuffer()
 end
 
 
-mutable struct GPUCommandEncoder
+mutable struct GPUCommandEncoder <: Droppable
     label::Any
     internal::Any
     device::Any
@@ -1441,13 +1445,18 @@ function beginRenderPass(
     renderPipelinePairs;
     label = " BEGIN RENDER PASS ",
 )
-    renderArgs = Dict() # MallocInfo
+	attachment = nothing
+	colorAttachmentsIn = nothing
+	depthStencilAttachmentIn = nothing
     for config in renderPipelinePairs[]
-        renderArgs[config.first] = createEntry(config.first; config.second...)
+    	attachment = createEntry(config.first; config.second...)
+    	if config.first == GPUColorAttachments
+    		colorAttachmentsIn = attachment
+    	elseif config.first == GPUDepthStencilAttachments
+    		depthStencilAttachmentIn = attachment
+    	end
     end
     # Both color and depth attachments requires pointer
-    colorAttachmentsIn = renderArgs[GPUColorAttachments]
-    depthStencilAttachmentIn = renderArgs[GPUDepthStencilAttachments]
     desc = GC.@preserve label cStruct(
         WGPURenderPassDescriptor;
         label = toCString(label),
@@ -1459,14 +1468,13 @@ function beginRenderPass(
                     length(da.attachmentObjs) > 0 ? da.internal[] : C_NULL
                 end,
     )
-    renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder.internal[], desc |> ptr) |> Ref
+    renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder.internal[], desc |> ptr)
     GPURenderPassEncoder(
         label,
-        renderPass,
+        renderPass |> Ref,
         renderPipelinePairs,
         cmdEncoder,
         desc,
-        renderArgs |> Ref, # TODO GCCHECK
     )
 end
 
@@ -1814,11 +1822,11 @@ function endEncoder(renderPass::GPURenderPassEncoder)
 end
 
 function submit(queue::GPUQueue, commandBuffers)
-    commandBufferListPtr = map((cmdbuf) -> cmdbuf.internal[], commandBuffers)
-    GC.@preserve commandBufferListPtr wgpuQueueSubmit(
+    commandBufferList = map((cmdbuf) -> cmdbuf.internal[], commandBuffers)
+    GC.@preserve commandBufferList wgpuQueueSubmit(
         queue.internal[],
         length(commandBuffers),
-        commandBufferListPtr |> pointer,
+        commandBufferList |> pointer,
     )
     for cmdbuf in commandBuffers
         cmdbuf.internal[] = C_NULL
@@ -1920,6 +1928,7 @@ end
 function Base.setproperty!(texview::GPUTextureView, s::Symbol, value)
     if s == :internal && texview.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUTextureView"
             destroy(texview)
         end
     end
@@ -1936,6 +1945,7 @@ end
 function Base.setproperty!(tex::GPUTexture, s::Symbol, value)
     if s == :internal && tex.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUTexture"
             destroy(tex)
         end
     end
@@ -1952,6 +1962,7 @@ end
 function Base.setproperty!(sampler::GPUSampler, s::Symbol, value)
     if s == :internal && sampler.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUSampler"
             destroy(sampler)
         end
     end
@@ -1968,6 +1979,7 @@ end
 function Base.setproperty!(layout::GPUBindGroupLayout, s::Symbol, value)
     if s == :internal && layout.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUBindGroupLayout"
             destroy(layout)
         end
     end
@@ -1984,6 +1996,7 @@ end
 function Base.setproperty!(bindGroup::GPUBindGroup, s::Symbol, value)
     if s == :internal && bindGroup.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUBindGroup"
             destroy(bindGroup)
         end
     end
@@ -2000,6 +2013,7 @@ end
 function Base.setproperty!(pipeline::GPUPipelineLayout, s::Symbol, value)
     if s == :internal && pipeline.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUPipelineLayout"
             destroy(pipeline)
         end
     end
@@ -2016,6 +2030,7 @@ end
 function Base.setproperty!(shader::GPUShaderModule, s::Symbol, value)
     if s == :internal && shader.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUShaderModule"
             destroy(shader)
         end
     end
@@ -2033,6 +2048,7 @@ function Base.setproperty!(pipeline::GPUComputePipeline, s::Symbol, value)
     if s == :internal && pipeline.internal[] != C_NULL
         if value == nothing || value == C_NULL
             destroy(pipeline)
+            @info "Destroying compute pipeline"
         end
     end
 end
@@ -2048,6 +2064,7 @@ end
 function Base.setproperty!(pipeline::GPURenderPipeline, s::Symbol, value)
     if s == :internal && pipeline.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying render pipeline"
             destroy(pipeline)
         end
     end
@@ -2064,6 +2081,7 @@ end
 function Base.setproperty!(buf::GPUBuffer, s::Symbol, value)
     if s == :internal && buf.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUBuffer"
             destroy(buf)
         end
     end
@@ -2080,6 +2098,7 @@ end
 function Base.setproperty!(buf::GPUCommandBuffer, s::Symbol, value)
     if s == :internal && buf.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUCommandBuffer"
             destroy(buf)
         end
     end
@@ -2096,6 +2115,7 @@ end
 function Base.setproperty!(enc::GPUCommandEncoder, s::Symbol, value)
     if s == :internal && enc.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUCommandEncoder"
             destroy(enc)
         end
     end
@@ -2104,21 +2124,22 @@ end
 function destroy(adapter::GPUAdapter)
     if adapter.internal[] != C_NULL
         tmpAdapterPtr = adapter.internal[]
-        adapter.internal = nothing
-        adapter = nothing
+        wgpuAdapterDrop(tmpAdapterPtr)
+        adapter.internal = C_NULL
     end
 end
 
-function destroy(adapter::Ptr{WGPUAdapterImpl})
-    if adapter != C_NULL
-        tmpAdapterPtr = adapter
-        adapter = C_NULL
+function destroy(adapterImpl::Ptr{WGPUAdapterImpl})
+    if adapterImpl != C_NULL
+        tmpAdapterPtr = adapterImpl
+        adapterImpl = C_NULL
     end
 end
 
 function Base.setproperty!(adapter::GPUAdapter, s::Symbol, value)
     if s == :internal && adapter.internal[] != C_NULL
         if value == nothing || value == C_NULL
+        	@info "Destroying GPUAdapter"
             destroy(adapter)
         end
     end
@@ -2141,8 +2162,8 @@ function Base.setproperty!(device::GPUDevice, s::Symbol, value)
     end
 end
 
-function isdestroyable()
-	
+function isDestroyable(obj)
+	typeof(obj) <: Droppable
 end
 
 end
