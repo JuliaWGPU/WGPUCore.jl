@@ -8,6 +8,7 @@ export cStruct, CStruct, cStructPtr, ptr, concrete
 ## default inits for non primitive types
 weakRefs = WeakKeyDict() # |> lock
 
+
 DEBUG = true
 
 function setDebugMode(mode)
@@ -85,17 +86,7 @@ defaultInit(::Type{T}) where {T} = begin
             push!(ins, defaultInit(fieldtype(T, t)))
         end
         t = T(ins...)
-        r = WGPURef(t)
-        f(x) = begin
-            # global DEBUG
-            # if DEBUG == true
-            @warn "Finalizing WGPURef $x"
-            # end
-            x = nothing
-        end
-        weakRefs[r] = (t, (ins .|> Ref)... )
-        finalizer(f, r)
-        return r
+        return t
     end
 end
 
@@ -121,7 +112,7 @@ function toCString(s::String)
 	sNullTerminated = s*"\0"
 	sPtr = pointer(sNullTerminated)
 	dPtr = Libc.malloc(sizeof(sNullTerminated))
-	dUInt8Ptr = reinterpret(Ptr{UInt8}, dPtr)
+	dUInt8Ptr = convert(Ptr{UInt8}, dPtr)
 	unsafe_copyto!(dUInt8Ptr, sPtr, sizeof(sNullTerminated))
 end
 
@@ -167,14 +158,7 @@ function partialInit(target::Type{T}; fields...) where {T}
         end
     end
     t = T(ins...)  # TODO MallocInfo
-    r = WGPURef(t) # TODO MallocInfo
-    f(x) = begin
-        @warn "Finalizing WGPURef $x"
-        x = nothing
-    end
-    weakRefs[r] = (t, (ins .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
-    finalizer(f, r)
-    return r
+    return t
 end
 
 function addToRefs(a::T, args...) where {T}
@@ -227,8 +211,10 @@ mutable struct CStruct{T}
 	function CStruct(cStructType::DataType)
 		csPtr = Libc.malloc(sizeof(cStructType))
 		f(x) = begin
- 			@info "Destroying CStruct `$x`"
- 			Libc.free(getfield(x, :ptr))
+ 			# @info "Destroying CStruct `$x`"
+ 			ptr = getfield(x, :ptr)
+ 			Libc.free(ptr)
+ 			setfield!(x, :ptr, typeof(ptr)(0))
 		end
 		obj = new{cStructType}(csPtr)
 		finalizer(f, obj)
@@ -236,14 +222,19 @@ mutable struct CStruct{T}
 	end
 end
 
+function cStructFree(cstruct::CStruct{T}) where T
+	ptr = getfield(cstruct, :ptr)
+	Libc.free(ptr)
+end
 
-function indirectionToField(cstruct::CStruct{T}, x) where T
-	fieldIdx = Base.fieldindex(T, x)
+
+function indirectionToField(cstruct::CStruct{T}, x::Symbol) where T
+	fieldIdx::Int64 = Base.fieldindex(T, x)
 	fieldOffset = Base.fieldoffset(T, fieldIdx)
 	fieldType = Base.fieldtype(T, fieldIdx)
 	fieldSize = fieldType |> sizeof
 	offsetptr = getfield(cstruct, :ptr) + fieldOffset
-	field = reinterpret(Ptr{fieldType}, offsetptr)
+	field = convert(Ptr{fieldType}, offsetptr)
 end
 
 function Base.getproperty(cstruct::CStruct{T}, x::Symbol) where T
