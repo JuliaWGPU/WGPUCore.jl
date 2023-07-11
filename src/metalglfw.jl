@@ -182,7 +182,7 @@ function setWindowSizeCallback(canvas::GLFWCanvas, f = nothing)
         callback = (_, w, h) -> begin
             println("window size : $w $h")
             canvas.size = (w, h)
-            determineSize(canvas.context[])
+            determineSize(canvas.context)
         end
     else
         callback = f
@@ -319,10 +319,10 @@ end
 
 
 function config(a::T; args...) where {T}
-    fields = fieldnames(typeof(a[]))
+    fields = fieldnames(typeof(a))
     for pair in args
         if pair.first in fields
-            setproperty!(a[], pair.first, pair.second)
+            setproperty!(a, pair.first, pair.second)
         else
             @error "Cannot set field $pair. Check if its a valid field for $T"
         end
@@ -364,7 +364,7 @@ function determineSize(cntxt::GPUCanvasContext)
     pixelRatio = GLFW.GetWindowContentScale(cntxt.canvasRef[].windowRef[]) |> first
     psize = GLFW.GetFramebufferSize(cntxt.canvasRef[].windowRef[])
     cntxt.pixelRatio = pixelRatio
-    cntxt.physicalSize = psize
+    cntxt.physicalSize = (psize.width, psize.height)
     cntxt.logicalSize = (psize.width, psize.height) ./ pixelRatio
     # TODO skipping event handlers for now
 end
@@ -387,10 +387,10 @@ function getSurfaceIdFromCanvas(cntxt::GPUCanvasContext)
 end
 
 function getCurrentTexture(cntxt::GPUCanvasContext)
-    if cntxt.device.internal[] == C_NULL
-        @error "context must be configured before request for texture"
-        return
-    end
+	# TODO this expensive so commenting it. Only first run though
+    # if cntxt.device.internal[] == C_NULL
+        # @error "context must be configured before request for texture"
+    # end
     if cntxt.currentTexture == nothing
         createNativeSwapChainMaybe(cntxt)
         id = wgpuSwapChainGetCurrentTextureView(cntxt.internal[]) |> Ref
