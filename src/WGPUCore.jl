@@ -1,364 +1,28 @@
 module WGPUCore
 
-
 using CEnum
 
 include("utils.jl")
+include("log.jl")
+include("backend.jl")
+include("adapter.jl")
+include("instance.jl")
+include("queue.jl")
+include("device.jl")
 
-abstract type WGPUAbstractBackend end
+include("droppable.jl")
+include("buffer.jl")
+
+include("shader.jl")
+
+
 
 function requestAdapter(::WGPUAbstractBackend, canvas, powerPreference)
     @error "Backend is not defined yet"
 end
 
-abstract type Droppable end
-
-# abstract type FixedDroppable <: Droppable end
-# abstract type ReusableDroppable <: Droppable end
-# abstract type GlobalDroppable <: Droppable end
-# abstract type LibcDroppable <: Droppable end
-
-mutable struct GPUAdapter
-    name::Any
-    features::Any
-    internal::Any
-    limits::Any
-    properties::Any
-    options::Any
-    supportedLimits::Any
-    extras::Any
-    backend::Any
-end
-
-mutable struct GPUDevice
-    label::Any
-    internal::Any
-    adapter::Any
-    features::Any
-    queue::Any
-    queueDescriptor::Any
-    deviceDescriptor::Any
-    requiredLimits::Any
-    wgpuLimits::Any
-    backend::Any
-    supportedLimits::Any
-end
-
-mutable struct WGPUBackend <: WGPUAbstractBackend
-    adapter::WGPURef{WGPUAdapter}
-    device::WGPURef{WGPUDevice}
-end
-
-mutable struct GPUQueue
-    label::Any
-    internal::Any
-    device::Any
-end
-
-mutable struct GPUBuffer <: Droppable
-    label::Any
-    internal::Any
-    device::Any
-    size::Any
-    usage::Any
-    desc::Any
-end
-
-asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
-
-function bufferCallback(status::WGPUBufferMapAsyncStatus, userData)
-    asyncstatus[] = status
-    return nothing
-end
-
-function mapRead(gpuBuffer::GPUBuffer)
-    bufferSize = gpuBuffer.size
-    buffercallback =
-        @cfunction(bufferCallback, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
-    # Prepare
-    data = convert(Ptr{UInt8}, Libc.malloc(bufferSize))
-    wgpuBufferMapAsync(
-        gpuBuffer.internal[],
-        WGPUMapMode_Read,
-        0,
-        bufferSize,
-        buffercallback,
-        C_NULL,
-    )
-    wgpuDevicePoll(gpuBuffer.device.internal[], true, C_NULL)
-
-    if asyncstatus[] != WGPUBufferMapAsyncStatus_Success
-        @error "Couldn't read buffer data : $asyncstatus"
-        asyncstatus[] = WGPUBufferMapAsyncStatus(3)
-    end
-
-    asyncstatus[] = WGPUBufferMapAsyncStatus(0)
-
-    src_ptr =
-        convert(Ptr{UInt8}, wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize))
-	
-    GC.@preserve src_ptr unsafe_copyto!(data, src_ptr, bufferSize)
-    
-    wgpuBufferUnmap(gpuBuffer.internal[])
-    return unsafe_wrap(Array{UInt8, 1}, data, bufferSize)
-end
-
-function mapWrite(gpuBuffer::GPUBuffer, data)
-    bufferSize = gpuBuffer.size
-    @assert sizeof(data) == bufferSize
-    buffercallback =
-        @cfunction(bufferCallback, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
-
-    wgpuBufferMapAsync(
-        gpuBuffer.internal,
-        WGPUMapMode_Write,
-        0,
-        bufferSize,
-        buffercallback,
-        C_NULL,
-    )
-    wgpuDevicePoll(gpuBuffer.device.internal, true)
-
-    if asyncstatus[] != WGPUBufferMapAsyncStatus_Success
-        @error "Couldn't write buffer data: $asyncstatus"
-        asyncstatus[] = WGPUBufferMapAsyncStatus(3)
-    end
-
-    asyncstatus[] = WGPUBufferMapAsyncStatus(0)
-
-    src_ptr = wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize)
-    src_ptr = convert(Ptr{UInt8}, src_ptr)
-    dst_ptr = pointer(data)
-    GC.@preserve src_ptr dst_ptr unsafe_copyto!(src_ptr, pointer(data), bufferSize)
-
-    wgpuBufferUnmap(gpuBuffer.internal)
-    return nothing
-end
-
-defaultInit(::Type{WGPUBackend}) = begin
-    adapter = defaultInit(GPUAdapter)
-    device = defaultInit(GPUDevice)
-    return WGPUBackend(WGPURef(adapter), WGPURef(device))
-end
-
-function getAdapterCallback(adapter::WGPURef{WGPUAdapter})
-    function request_adapter_callback(
-        a::WGPURequestAdapterStatus,
-        b::WGPUAdapter,
-        c::Ptr{Cchar},
-        d::Ptr{Nothing},
-    )
-        adapter[] = b
-        return nothing
-    end
-    return request_adapter_callback
-end
-
-function getDeviceCallback(device::WGPURef{WGPUDevice})
-    function request_device_callback(
-        a::WGPURequestDeviceStatus,
-        b::WGPUDevice,
-        c::Ptr{Cchar},
-        d::Ptr{Nothing},
-    )
-        device[] = b
-        return nothing
-    end
-    return request_device_callback
-end
-
-adapter = WGPURef(defaultInit(WGPUAdapter))
-device = WGPURef(defaultInit(WGPUDevice))
-backend = WGPUBackend(adapter, device)
-
-defaultInit(::Type{WGPUBackendType}) = WGPUBackendType_WebGPU
-
-function requestAdapter(;
-    canvas = nothing,
-    powerPreference = defaultInit(WGPUPowerPreference),
-)
-    chain = cStruct(
-        WGPUChainedStruct;
-        sType = WGPUSType(Int64(WGPUSType_AdapterExtras)),
-    )
 
 
-    cAdapterExtras = cStruct(
-    	WGPUAdapterExtras;
-		chain = chain |> concrete
-   	)
-
-    cAdapterOptions =
-        cStruct(
-            WGPURequestAdapterOptions;
-            nextInChain = cAdapterExtras |> ptr,
-            powerPreference = powerPreference,
-            forceFallbackAdapter = false,
-        )
-
-    requestAdapterCallback = @cfunction(
-        getAdapterCallback(adapter),
-        Cvoid,
-        (WGPURequestAdapterStatus, WGPUAdapter, Ptr{Cchar}, Ptr{Cvoid})
-    )
-
-    # if adapter[] != C_NULL
-        # tmpAdapter = adapter[]
-        # adapter[] = C_NULL
-        # destroy(tmpAdapter)
-    # end
-
-    wgpuInstanceRequestAdapter(
-    	getWGPUInstance(), 
-    	cAdapterOptions |> ptr, 
-    	requestAdapterCallback, 
-   		adapter[]
-	)
-
-    cAdapterProperties = cStruct(WGPUAdapterProperties)
-
-    wgpuAdapterGetProperties(adapter[], cAdapterProperties |> ptr)
-    cSupportedLimits = cStruct(WGPUSupportedLimits;)
-    GC.@preserve cSupportedLimits wgpuAdapterGetLimits(adapter[], cSupportedLimits |> ptr)
-    features = []
-    GPUAdapter(
-        "WGPU",
-        features,
-        adapter,
-        cSupportedLimits,
-        cAdapterProperties,
-        cAdapterOptions,
-        cSupportedLimits,
-        cAdapterExtras,
-        backend
-    )
-end
-
-function requestDevice(
-    gpuAdapter::GPUAdapter;
-    label = " DEVICE DESCRIPTOR ",
-    requiredFeatures = [],
-    requiredLimits = [],
-    defaultQueue = [],
-    tracepath = "",
-)
-    # TODO trace path
-    # Drop devices TODO
-    # global backend
-    chainObj = cStruct(
-        WGPUChainedStruct;
-        next = C_NULL,
-        sType = WGPUSType(Int32(WGPUSType_DeviceExtras)),
-    )
-
-    deviceExtras = cStruct(
-        WGPUDeviceExtras;
-        chain = chainObj |> concrete,
-        tracePath = toCString(tracepath),
-    )
-
-    wgpuLimits = cStruct(WGPULimits; maxBindGroups = 2) # TODO set limits
-    wgpuRequiredLimits =
-        cStruct(WGPURequiredLimits; nextInChain = C_NULL, limits = wgpuLimits |> concrete)
-
-    wgpuQueueDescriptor = cStruct(
-        WGPUQueueDescriptor;
-        nextInChain = C_NULL,
-        label = toCString("DEFAULT QUEUE"),
-    ) 
-
-    wgpuDeviceDescriptor =
-        cStruct(
-            WGPUDeviceDescriptor;
-            label = toCString(label),
-            nextInChain = convert(Ptr{WGPUChainedStruct}, deviceExtras |> ptr),
-            requiredFeaturesCount = 0,
-            requiredLimits = (wgpuRequiredLimits |> ptr),
-            defaultQueue = wgpuQueueDescriptor |> concrete,
-        )
-
-    requestDeviceCallback = @cfunction(
-        getDeviceCallback(device),
-        Cvoid,
-        (WGPURequestDeviceStatus, WGPUDevice, Ptr{Cchar}, Ptr{Cvoid})
-    )
-    # TODO dump all the info to a string or add it to the GPUAdapter structure
-    if device[] == C_NULL
-        wgpuAdapterRequestDevice(
-            gpuAdapter.internal[],
-            C_NULL,
-            requestDeviceCallback,
-            device[],
-        )
-    end
-
-    supportedLimits = cStruct(WGPUSupportedLimits;)
-
-    wgpuDeviceGetLimits(device[], supportedLimits |> ptr)
-    features = []
-    deviceQueue = WGPURef(wgpuDeviceGetQueue(device[]))
-    queue = GPUQueue(" GPU QUEUE ", deviceQueue, nothing)
-
-    GPUDevice(
-        "WGPU Device",
-        device,
-        gpuAdapter,
-        features,
-        queue,
-        wgpuQueueDescriptor,
-        wgpuDeviceDescriptor,
-        wgpuRequiredLimits,
-        wgpuLimits,
-        supportedLimits,
-        backend,
-    )
-end
-
-function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
-    labelPtr = toCString(label)
-    desc = cStruct(
-        WGPUBufferDescriptor;
-        label = labelPtr,
-        size = bufSize,
-        usage = getEnum(WGPUBufferUsage, usage),
-        mappedAtCreation = mappedAtCreation,
-    )
-    buffer = GC.@preserve labelPtr wgpuDeviceCreateBuffer(
-        gpuDevice.internal[],
-        desc |> ptr,
-    ) |> Ref
-    GPUBuffer(label, buffer, gpuDevice, bufSize, usage, desc)
-end
-
-
-function getDefaultDevice(; backend = backend)
-    adapter = WGPUCore.requestAdapter()
-    device = requestDevice(adapter)
-    return device
-end
-
-flatten(x) = reshape(x, (:,))
-
-function createBufferWithData(gpuDevice, label, data, usage)
-    dataRef = data |> Ref #phantom reference
-    bufSize = sizeof(data)
-    buffer = createBuffer(label, gpuDevice, bufSize, usage, true)
-    dstPtr = convert(Ptr{UInt8}, wgpuBufferGetMappedRange(buffer.internal[], 0, bufSize))
-    GC.@preserve dstPtr begin
-        dst = unsafe_wrap(Vector{UInt8}, dstPtr, bufSize)
-        dst .= reinterpret(UInt8, data) |> flatten
-    end
-    wgpuBufferUnmap(buffer.internal[])
-    return (buffer, dataRef, label)
-end
-
-## TODO
-function computeWithBuffers(
-    inputArrays::Dict{Int,Array},
-    outputArrays::Dict{Int,Union{Int,Tuple}},
-)
-
-end
 
 mutable struct GPUTexture <: Droppable
     label::Any
@@ -768,13 +432,14 @@ function createBindGroup(label, gpuDevice, bindingLayout, entries)
     GPUBindGroup(label, Ref(bindGroup), bindingLayout, gpuDevice, entries, bindGroupDesc)
 end
 
+# deprecated function
 function makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
     @assert length(bindings) == length(bindingLayouts)
     cBindingLayoutsCntxtList = makeLayoutEntryList(bindingLayouts)
     cBindingsCntxtList = makeBindGroupEntryList(bindings)
     bindGroupLayout =
-        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsCntxtList.cEntries)
-    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsCntxtList.cEntries)
+        createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsCntxtList)
+    bindGroup = createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsCntxtList)
     return (bindGroupLayout, bindGroup)
 end
 
@@ -830,88 +495,6 @@ function createPipelineLayout(gpuDevice, label, bindingLayouts, bindings)
     )
 end
 
-mutable struct GPUShaderModule <: Droppable
-    label::Any
-    internal::Any
-    desc::Any
-    device::Any
-end
-
-mutable struct WGSLSrcInfo
-	shaderModuleDesc
-	buffer
-	chain
-	wgslModuleDesc
-	name
-end
-
-function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
-   	chain = cStruct(
-   		WGPUChainedStruct;
-   		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
-	) 
-    wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
-		chain = chain |> concrete,
-    	code = pointer(buffer)
-    )
-    a = cStruct(
-        WGPUShaderModuleDescriptor;
-        nextInChain = wgslDescriptor |> ptr ,
-        label = toCString(name),
-    )
-    return WGSLSrcInfo(a, buffer, chain, wgslDescriptor, name)
-end
-
-function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
-    b = read(buffer)
-   	chain = cStruct(
-   		WGPUChainedStruct;
-   		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
-	) 
-    wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
-		chain = chain |> concrete,
-    	code = pointer(b)
-    )
-    a = cStruct(
-        WGPUShaderModuleDescriptor;
-        nextInChain = wgslDescriptor |> ptr,
-        label = toCString(name),
-    )
-    return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
-end
-
-function loadWGSL(file::IOStream; name = " UnknownShader ")
-    b = read(file)
-   	chain = cStruct(
-   		WGPUChainedStruct;
-   		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
-	) 
-    wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
-		chain = chain |> concrete,
-    	code = pointer(b)
-    )
-    a = cStruct(
-        WGPUShaderModuleDescriptor;
-        nextInChain = wgslDescriptor |> ptr,
-        label = toCString(name == "UnknownShader" ? file.name : name),
-    )
-    return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
-end
-
-function createShaderModule(gpuDevice, label, shadercode, sourceMap, hints)
-    shader = GC.@preserve shadercode wgpuDeviceCreateShaderModule(
-        gpuDevice.internal[],
-        shadercode |> ptr,
-    )
-
-    GPUShaderModule(label, shader |> Ref, shadercode, gpuDevice)
-end
 
 mutable struct GPUComputePipeline <: Droppable
     label::Any
@@ -1914,7 +1497,7 @@ elseif Sys.isapple()
 elseif Sys.islinux()
     include("glfw.jl")
 elseif Sys.iswindows()
-    include("glfw.jl") # TODO windows is not tested yet
+    include("glfwWindows.jl") # TODO windows is not tested yet
 end
 
 function destroy(texView::GPUTextureView)

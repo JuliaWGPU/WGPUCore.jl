@@ -26,7 +26,7 @@ mutable struct MouseState
     scroll::Any
 end
 
-defaultInit(::Type{MouseState}) = begin
+initMouse(::Type{MouseState}) = begin
     MouseState(false, false, false, false)
 end
 
@@ -103,7 +103,7 @@ function defaultCanvas(::Type{GLFWX11Canvas}; size = (500, 500))
         backend.device,
         nothing,
         nothing,
-        defaultInit(MouseState),
+        initMouse(MouseState),
     )
     getContext(canvas)
     setJoystickCallback(canvas)

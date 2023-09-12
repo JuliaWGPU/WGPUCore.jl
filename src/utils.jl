@@ -48,38 +48,15 @@ function getEnum(::Type{T}, partials::Vector{String}) where {T<:Cenum}
 	end
 end
 
-function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
-    if logLevel == WGPULogLevel_Error
-        level_str = "ERROR"
-    elseif logLevel == WGPULogLevel_Warn
-        level_str = "WARN"
-    elseif logLevel == WGPULogLevel_Info
-        level_str = "INFO"
-    elseif logLevel == WGPULogLevel_Debug
-        level_str = "DEBUG"
-    elseif logLevel == WGPULogLevel_Trace
-        level_str = "TRACE"
-    else
-        level_str = "UNKNOWN LOG LEVEL"
-    end
-    println("$(level_str) $(unsafe_string(msg))") # TODO MallocInfo
-end
-
-function SetLogLevel(loglevel::WGPULogLevel)
-	# Commenting them for now TODO verify the link to MallocInfo
-    logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
-    wgpuSetLogCallback(logcallback, C_NULL)
-    @info "Setting Log level : $loglevel"
-    wgpuSetLogLevel(loglevel)
-end
-
 defaultInit(::Type{T}) where {T<:Number} = T(0)
+
+defaultInit(::Type{String}) = ""
 
 defaultInit(::Type{T}) where {T} = begin
     if isprimitivetype(T)
         return T(0)
-    elseif isabstracttype(T)
-    	return nothing
+    # elseif isabstracttype(T)
+    # 	return nothing
     else
         ins = []
         for t in fieldnames(T)
@@ -176,14 +153,6 @@ function unsafe_charArray(w::String)
     return pointer(Vector{UInt8}(w))
 end
 
-function pointerRef(::Type{T}; kwargs...) where {T}
-    pointer_from_objref(Ref(partialInit(T; kwargs...)))
-end
-
-function pointerRef(a::Ref{T}) where {T<:Any}
-    return pointer_from_objref(a)
-end
-
 getBufferUsage(partials) = getEnum(WGPUBufferUsage, partials)
 
 getBufferBindingType(partials) = getEnum(WGPUBufferBindingType, partials)
@@ -195,101 +164,101 @@ function listPartials(::Type{T}) where {T<:Cenum}
     map((x) -> split(string(x[1]), "_")[end], pairs)
 end
 
-_wgpuInstance = Ptr{WGPUInstanceImpl}()
+# _wgpuInstance = Ptr{WGPUInstanceImpl}()
 
-function getWGPUInstance()
-	global _wgpuInstance
-	if _wgpuInstance == C_NULL
-		_wgpuInstance = WGPUInstanceDescriptor(0) |> Ref |> wgpuCreateInstance
-	end
-	return _wgpuInstance
-end
-
-
-mutable struct CStruct{T}
-	ptr::Ptr{T}
-	function CStruct(cStructType::DataType)
-		csPtr = Libc.malloc(sizeof(cStructType))
-		f(x) = begin
- 			# @info "Destroying CStruct `$x`"
- 			ptr = getfield(x, :ptr)
- 			Libc.free(ptr)
- 			setfield!(x, :ptr, typeof(ptr)(0))
-		end
-		obj = new{cStructType}(csPtr)
-		finalizer(f, obj)
-		return obj
-	end
-end
-
-function cStructFree(cstruct::CStruct{T}) where T
-	ptr = getfield(cstruct, :ptr)
-	Libc.free(ptr)
-end
+# function getWGPUInstance()
+# 	global _wgpuInstance
+# 	if _wgpuInstance == C_NULL
+# 		_wgpuInstance = WGPUInstanceDescriptor(0) |> Ref |> wgpuCreateInstance
+# 	end
+# 	return _wgpuInstance
+# end
 
 
-function indirectionToField(cstruct::CStruct{T}, x::Symbol) where T
-	fieldIdx::Int64 = Base.fieldindex(T, x)
-	fieldOffset = Base.fieldoffset(T, fieldIdx)
-	fieldType = Base.fieldtype(T, fieldIdx)
-	fieldSize = fieldType |> sizeof
-	offsetptr = getfield(cstruct, :ptr) + fieldOffset
-	field = convert(Ptr{fieldType}, offsetptr)
-end
+# mutable struct CStruct{T}
+# 	ptr::Ptr{T}
+# 	function CStruct(cStructType::DataType)
+# 		csPtr = Libc.malloc(sizeof(cStructType))
+# 		f(x) = begin
+#  			# @info "Destroying CStruct `$x`"
+#  			ptr = getfield(x, :ptr)
+#  			Libc.free(ptr)
+#  			setfield!(x, :ptr, typeof(ptr)(0))
+# 		end
+# 		obj = new{cStructType}(csPtr)
+# 		finalizer(f, obj)
+# 		return obj
+# 	end
+# end
 
-function Base.getproperty(cstruct::CStruct{T}, x::Symbol) where T
-	unsafe_load(indirectionToField(cstruct, x), 1)
-end
-
-function Base.setproperty!(cstruct::CStruct{T}, x::Symbol, v) where T
-	field = indirectionToField(cstruct, x)
-	unsafe_store!(field, v)
-end
-
-
-ptr(cs::CStruct{T}) where T = getfield(cs, :ptr)
-
-# TODO this is not working right now
-# left it because its not priority.
-# Can always use getfield
-function Base.getproperty(cstruct::CStruct{T}, x::Val{:ptr}) where T
-	getfield(cstruct, :ptr)
-end
+# function cStructFree(cstruct::CStruct{T}) where T
+# 	ptr = getfield(cstruct, :ptr)
+# 	Libc.free(ptr)
+# end
 
 
-function cStruct(ctype::DataType; fields...)
-	infields = []
-	others = []
-	cs = CStruct(ctype)
-	inPairs = pairs(fields)
-	for field in keys(inPairs)
-		if field in fieldnames(ctype)
-			setproperty!(cs, field, inPairs[field])
-		elseif startswith(string(field), "xref")
-			push!(others, inPairs[field])
-		else 
-			@warn """ CStruct : Setting property of non member field. \n
-			Trying to set non member field `$field`.
-			only supported fieldnames for `$ctype` are $(fieldnames(ctype))
-			"""
-		end
-	end
-    # r = WeakRef(cs) # TODO MallocInfo
-    # f(x) = begin
-        # @warn "Finalizing CStruct `$ctype` $x"
-    # end
-    # weakRefs[r] = ((infields .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
-    # finalizer(f, r)
-	return cs
-end
+# function indirectionToField(cstruct::CStruct{T}, x::Symbol) where T
+# 	fieldIdx::Int64 = Base.fieldindex(T, x)
+# 	fieldOffset = Base.fieldoffset(T, fieldIdx)
+# 	fieldType = Base.fieldtype(T, fieldIdx)
+# 	fieldSize = fieldType |> sizeof
+# 	offsetptr = getfield(cstruct, :ptr) + fieldOffset
+# 	field = convert(Ptr{fieldType}, offsetptr)
+# end
 
-function cStructPtr(ctype::DataType; fields...)
-	return ptr(cStruct(ctype; fields...))
-end
+# function Base.getproperty(cstruct::CStruct{T}, x::Symbol) where T
+# 	unsafe_load(indirectionToField(cstruct, x), 1)
+# end
 
-function concrete(cstruct::CStruct{T}) where T
-	return cstruct |> ptr |> unsafe_load
-end
+# function Base.setproperty!(cstruct::CStruct{T}, x::Symbol, v) where T
+# 	field = indirectionToField(cstruct, x)
+# 	unsafe_store!(field, v)
+# end
+
+
+# ptr(cs::CStruct{T}) where T = getfield(cs, :ptr)
+
+# # TODO this is not working right now
+# # left it because its not priority.
+# # Can always use getfield
+# function Base.getproperty(cstruct::CStruct{T}, x::Val{:ptr}) where T
+# 	getfield(cstruct, :ptr)
+# end
+
+
+# function cStruct(ctype::DataType; fields...)
+# 	infields = []
+# 	others = []
+# 	cs = CStruct(ctype)
+# 	inPairs = pairs(fields)
+# 	for field in keys(inPairs)
+# 		if field in fieldnames(ctype)
+# 			setproperty!(cs, field, inPairs[field])
+# 		elseif startswith(string(field), "xref")
+# 			push!(others, inPairs[field])
+# 		else 
+# 			@warn """ CStruct : Setting property of non member field. \n
+# 			Trying to set non member field `$field`.
+# 			only supported fieldnames for `$ctype` are $(fieldnames(ctype))
+# 			"""
+# 		end
+# 	end
+#     # r = WeakRef(cs) # TODO MallocInfo
+#     # f(x) = begin
+#         # @warn "Finalizing CStruct `$ctype` $x"
+#     # end
+#     # weakRefs[r] = ((infields .|> Ref)..., (others .|> Ref)...) # TODO MallocInfo
+#     # finalizer(f, r)
+# 	return cs
+# end
+
+# function cStructPtr(ctype::DataType; fields...)
+# 	return ptr(cStruct(ctype; fields...))
+# end
+
+# function concrete(cstruct::CStruct{T}) where T
+# 	return cstruct |> ptr |> unsafe_load
+# end
 
 # TODO might cause few issues commenting for now
 # This would help us while working with REPL
@@ -297,3 +266,4 @@ end
 	# Base.fieldnames(T)
 # end
 
+flatten(x) = reshape(x, (:,))
