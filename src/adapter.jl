@@ -9,7 +9,7 @@ mutable struct GPUAdapter
     options::Any
     supportedLimits::Any
     extras::Any
-    backend::WGPUBackendType
+    backendType::WGPUBackendType
 end
 
 function getAdapterCallback(adapter::Ref{WGPUAdapter})
@@ -31,7 +31,7 @@ function getAdapterCallback(adapter::Ref{WGPUAdapter})
     return request_adapter_callback
 end
 
-adapter = Ref{WGPUAdapter}()
+const adapter = Ref{WGPUAdapter}()
 
 function requestAdapter(;
     canvas = nothing,
@@ -42,11 +42,11 @@ function requestAdapter(;
         sType = WGPUSType(Int64(WGPUSType_AdapterExtras)),
     )
     
-    backend = getDefaultBackend()
+    backendType = getDefaultBackendType()
 
     extras = cStruct(
         WGPUAdapterExtras;
-        backend=backend, # TODO hardcoding on windows for now
+        backend=backendType,
         chain = chain |> concrete
     )
 
@@ -93,7 +93,7 @@ function requestAdapter(;
         properties,
         adapterOptions,
         extras,
-        backend
+        backendType
     )
 end
 

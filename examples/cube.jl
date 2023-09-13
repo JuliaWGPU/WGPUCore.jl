@@ -50,6 +50,7 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()
+canvas.device = gpuDevice
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
     WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing);

@@ -4,17 +4,19 @@ using CEnum
 
 include("utils.jl")
 include("log.jl")
+include("backendType.jl")
 include("backend.jl")
 include("adapter.jl")
 include("instance.jl")
 include("queue.jl")
 include("device.jl")
 
+
+
 include("droppable.jl")
 include("buffer.jl")
 
 include("shader.jl")
-
 
 
 function requestAdapter(::WGPUAbstractBackend, canvas, powerPreference)

@@ -1,3 +1,5 @@
+export requestDevice, device
+
 device = Ref{WGPUDevice}()
 
 function getDeviceCallback(device::Ref{WGPUDevice})
@@ -29,7 +31,7 @@ mutable struct GPUDevice
     deviceDescriptor::Any
     requiredLimits::Any
     wgpuLimits::Any
-    backend::Any
+    backendType::Any
     supportedLimits::Any
 end
 
@@ -104,7 +106,7 @@ function requestDevice(
     features = []
     deviceQueue = Ref(wgpuDeviceGetQueue(device[]))
     queue = GPUQueue(" GPU QUEUE ", deviceQueue, nothing)
-    backend = gpuAdapter.backend # TODO this needs to be current backend
+    backendType = gpuAdapter.backendType # TODO this needs to be current backend
     GPUDevice(
         "WGPU Device",
         device,
@@ -116,11 +118,11 @@ function requestDevice(
         wgpuRequiredLimits,
         wgpuLimits,
         supportedLimits,
-        backend,
+        backendType,
     )
 end
 
-function getDefaultDevice(; backend = getDefaultBackend())
+function getDefaultDevice(; backendType = getDefaultBackendType())
     adapter = WGPUCore.requestAdapter()
     device = requestDevice(adapter)
     return device

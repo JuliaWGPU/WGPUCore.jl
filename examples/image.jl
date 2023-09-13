@@ -152,11 +152,11 @@ textureView = WGPUCore.createView(texture)
 
 dstLayout = [
     :dst => [
-        :texture => texture |> Ref,
+        :texture => texture,
         :mipLevel => 0,
         :origin => ((0, 0, 0) .|> Float32),
     ],
-    :textureData => textureData |> Ref,
+    :textureData => textureData,
     :layout => [
         :offset => 0,
         :bytesPerRow => 256 * 4, # TODO
@@ -199,7 +199,7 @@ pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bind
 
 presentContext = WGPUCore.getContext(canvas)
 
-WGPUCore.determineSize(presentContext[])
+WGPUCore.determineSize(presentContext)
 
 WGPUCore.config(presentContext, device = gpuDevice, format = renderTextureFormat)
 
@@ -266,7 +266,7 @@ try
         (tmpBuffer, _) =
             WGPUCore.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
 
-        currentTextureView = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        currentTextureView = WGPUCore.getCurrentTexture(presentContext) |> Ref
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "CMD ENCODER")
         WGPUCore.copyBufferToBuffer(
             cmdEncoder,
@@ -317,7 +317,7 @@ try
         )
         WGPUCore.endEncoder(renderPass)
         WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
-        WGPUCore.present(presentContext[])
+        WGPUCore.present(presentContext)
         GLFW.PollEvents()
         # dataDown = reinterpret(Float32, WGPUCore.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
         # @info sum(dataDown .== vertexData |> flatten)

@@ -61,7 +61,7 @@ mutable struct GLFWMacCanvas <: GLFWCanvas
     requestDrawTimerRunning::Any
     changingPixelRatio::Any
     isMinimized::Bool
-    device::Any
+    device::Union{GPUDevice, Nothing}
     context::Any
     drawFunc::Any
     mouseState::Any
@@ -117,7 +117,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
         nothing,
         false,
         false,
-        backend.device,
+        nothing,
         nothing,
         nothing,
         initMouse(MouseState),
@@ -299,17 +299,31 @@ mutable struct GPUCanvasContext
     logicalSize::Any
 end
 
+            # canvasRef = Ref(gpuCanvas),
+            # surfaceSize = (-1, -1),
+            # surfaceId = gpuCanvas.surfaceRef[],
+            # internal = nothing,
+            # device = gpuCanvas.device,
+            # physicalSize = gpuCanvas.size,
+            # compositingAlphaMode = nothing,
+
+
 function getContext(gpuCanvas::GLFWMacCanvas)
     if gpuCanvas.context == nothing
-        context = partialInit(
-            GPUCanvasContext;
-            canvasRef = Ref(gpuCanvas),
-            surfaceSize = (-1, -1),
-            surfaceId = gpuCanvas.surfaceRef[],
-            internal = nothing,
-            device = gpuCanvas.device,
-            physicalSize = gpuCanvas.size,
-            compositingAlphaMode = nothing,
+        context = GPUCanvasContext(
+			Ref(gpuCanvas),		    	# canvasRef::Ref{GLFWMacCanvas}
+			(-1, -1),			    	# surfaceSize::Any
+			gpuCanvas.surfaceRef[],	    # surfaceId::Any
+			nothing,				    # internal::Any
+			nothing,				    # currentTexture::Any
+			gpuCanvas.device,		    # device::Any
+			WGPUTextureFormat(0),		# format::WGPUTextureFormat
+			WGPUTextureUsage(0),		# usage::WGPUTextureUsage
+			nothing,				    # compositingAlphaMode::Any
+			nothing,				    # size::Any
+			gpuCanvas.size,			    # physicalSize::Any
+			nothing,	    			# pixelRatio::Any
+			nothing,				    # logicalSize::Any
         )
         gpuCanvas.context = context
     else
