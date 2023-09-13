@@ -31,7 +31,7 @@ function getAdapterCallback(adapter::Ref{WGPUAdapter})
     return request_adapter_callback
 end
 
-const adapter = Ref{WGPUAdapter}()
+adapter = Ref{WGPUAdapter}()
 
 function requestAdapter(;
     canvas = nothing,
