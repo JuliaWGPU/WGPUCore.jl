@@ -1497,7 +1497,7 @@ if forceOffscreen == true
 elseif Sys.isapple()
     include("metalglfw.jl")
 elseif Sys.islinux()
-    include("glfw.jl")
+    include("linuxglfw.jl")
 elseif Sys.iswindows()
     include("glfwWindows.jl") # TODO windows is not tested yet
 end
