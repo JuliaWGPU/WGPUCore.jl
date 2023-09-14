@@ -116,30 +116,6 @@ function toCString(s::String)
 	unsafe_copyto!(dUInt8Ptr, sPtr, sizeof(sNullTerminated))
 end
 
-mutable struct WGPURef{T}
-    value::Union{T,Nothing}
-end
-
-function Base.getproperty(t::WGPURef{T}, s::Symbol) where {T}
-    tmp = getfield(t, :value)
-    return getproperty(tmp, s)
-end
-
-function Base.convert(::Type{T}, w::WGPURef{T}) where {T}
-    return getfield(w, :value)
-end
-
-function Base.getindex(w::WGPURef{T}) where {T}
-    return getfield(w, :value)
-end
-
-function Base.setindex!(w::WGPURef{T}, value) where {T}
-    setfield!(w, :value, convert(T, value))
-end
-
-function Base.unsafe_convert(::Type{Ptr{T}}, w::Base.RefValue{WGPURef{T}}) where {T}
-    return convert(Ptr{T}, Ref(getfield(w[], :value)) |> pointer_from_objref)
-end
 
 function partialInit(target::Type{T}; fields...) where {T}
     ins = []	# TODO MallocInfo

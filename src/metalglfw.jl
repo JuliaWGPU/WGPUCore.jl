@@ -117,7 +117,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
         nothing,
         false,
         false,
-        backend.device,
+        device,
         nothing,
         nothing,
         defaultInit(MouseState),

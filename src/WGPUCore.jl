@@ -44,11 +44,6 @@ mutable struct GPUDevice
     supportedLimits::Any
 end
 
-mutable struct WGPUBackend <: WGPUAbstractBackend
-    adapter::WGPURef{WGPUAdapter}
-    device::WGPURef{WGPUDevice}
-end
-
 mutable struct GPUQueue
     label::Any
     internal::Any
@@ -135,13 +130,8 @@ function mapWrite(gpuBuffer::GPUBuffer, data)
     return nothing
 end
 
-defaultInit(::Type{WGPUBackend}) = begin
-    adapter = defaultInit(GPUAdapter)
-    device = defaultInit(GPUDevice)
-    return WGPUBackend(WGPURef(adapter), WGPURef(device))
-end
 
-function getAdapterCallback(adapter::WGPURef{WGPUAdapter})
+function getAdapterCallback(adapter::Ref{WGPUAdapter})
     function request_adapter_callback(
         a::WGPURequestAdapterStatus,
         b::WGPUAdapter,
@@ -154,7 +144,7 @@ function getAdapterCallback(adapter::WGPURef{WGPUAdapter})
     return request_adapter_callback
 end
 
-function getDeviceCallback(device::WGPURef{WGPUDevice})
+function getDeviceCallback(device::Ref{WGPUDevice})
     function request_device_callback(
         a::WGPURequestDeviceStatus,
         b::WGPUDevice,
@@ -167,11 +157,11 @@ function getDeviceCallback(device::WGPURef{WGPUDevice})
     return request_device_callback
 end
 
-adapter = WGPURef(defaultInit(WGPUAdapter))
-device = WGPURef(defaultInit(WGPUDevice))
-backend = WGPUBackend(adapter, device)
+adapter = Ref(defaultInit(WGPUAdapter))
+device = Ref(defaultInit(WGPUDevice))
+# backend = WGPUBackend(adapter, device)
 
-defaultInit(::Type{WGPUBackendType}) = WGPUBackendType_WebGPU
+defaultInit(::Type{WGPUBackendType}) = WGPUBackendType_Metal
 
 function requestAdapter(;
     canvas = nothing,
@@ -230,7 +220,7 @@ function requestAdapter(;
         cAdapterOptions,
         cSupportedLimits,
         cAdapterExtras,
-        backend
+        nothing
     )
 end
 
@@ -296,7 +286,7 @@ function requestDevice(
 
     wgpuDeviceGetLimits(device[], supportedLimits |> ptr)
     features = []
-    deviceQueue = WGPURef(wgpuDeviceGetQueue(device[]))
+    deviceQueue = Ref(wgpuDeviceGetQueue(device[]))
     queue = GPUQueue(" GPU QUEUE ", deviceQueue, nothing)
 
     GPUDevice(
@@ -310,7 +300,7 @@ function requestDevice(
         wgpuRequiredLimits,
         wgpuLimits,
         supportedLimits,
-        backend,
+        nothing,
     )
 end
 
@@ -331,7 +321,7 @@ function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
 end
 
 
-function getDefaultDevice(; backend = backend)
+function getDefaultDevice(; backend = nothing)
     adapter = WGPUCore.requestAdapter()
     device = requestDevice(adapter)
     return device
