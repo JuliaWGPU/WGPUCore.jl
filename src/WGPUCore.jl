@@ -1904,7 +1904,7 @@ elseif Sys.isapple()
 elseif Sys.islinux()
     include("glfw.jl")
 elseif Sys.iswindows()
-    include("glfw.jl") # TODO windows is not tested yet
+    include("glfwWindows.jl") # TODO windows is not tested yet
 end
 
 function destroy(texView::GPUTextureView)
