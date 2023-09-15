@@ -1,5 +1,5 @@
 # GC.gc()
-using WGPU
+using WGPUCore
 using Test
 
 vertexStateOptions = [
@@ -35,25 +35,29 @@ vertexAttrib2 = WGPUCore.createEntry(
     shaderLocation = 1,
 )
 
+# GC.gc()
+
 vertexState = WGPUCore.createEntry(WGPUCore.GPUVertexState; vertexStateOptions...)
+vs = vertexState.internal[]
 
-vsInternal = vertexState.internal
-vs = vsInternal[]
+# GC.gc()
 
-bufs = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
-buf = bufs[1]
+# bufs = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
+buf = unsafe_load(vs.buffers, 1)
 
-attrs = unsafe_wrap(Vector{WGPUCore.WGPUVertexAttribute}, buf.attributes, buf.attributeCount)
+attrs = unsafe_wrap(Array, buf.attributes, buf.attributeCount; own=false)
 
 attr1 = unsafe_load(buf.attributes, 1)
 attr2 = unsafe_load(buf.attributes, 2)
+
+# GC.gc(true)
 
 Test.@testset "BufferLayoutTest" begin
     Test.@test buf.attributeCount == 2
     Test.@test (vs.entryPoint |> unsafe_string) == "vs_main"
     Test.@test vs.bufferCount == 1
     Test.@test vs.buffers != C_NULL
-    Test.@test attr1 == vertexAttrib1.internal[]
+    Test.@test attr1 == vertexAttrib1.internal |> concrete
     Test.@test attrs == [attr1, attr2]
-    Test.@test attr2 == vertexAttrib2.internal[]
+    Test.@test attr2 == vertexAttrib2.internal |> concrete
 end

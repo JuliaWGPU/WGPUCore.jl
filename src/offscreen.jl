@@ -30,7 +30,7 @@ function getPreferredFormat(canvas::OffscreenCanvas)
     return getEnum(WGPUTextureFormat, "RGBA8Unorm")
 end
 
-function defaultInit(::Type{OffscreenCanvas})
+function defaultCanvas(::Type{OffscreenCanvas})
     title = "Offscreen Window"
     canvas = OffscreenCanvas(
         title,
@@ -56,7 +56,6 @@ mutable struct GPUCanvasContextOffline
     currentTextureView::Any
     format::WGPUTextureFormat
     usage::WGPUTextureUsage
-    colorSpace::WGPUPredefinedColorSpace
     compositingAlphaMode::Any
     size::Any
     physicalSize::Any
@@ -106,7 +105,6 @@ function configure(
     format,
     usage,
     viewFormats,
-    colorSpace,
     compositingAlphaMode,
     size,
 )
@@ -114,7 +112,6 @@ function configure(
     canvasContext.device = device
     canvasContext.format = format
     canvasContext.usage = usage
-    canvasContext.colorSpance = colorSpace
     canvasContext.compositingAlphaMode = compositingAlphaMode
     canvasContext.size = size
 end
@@ -123,7 +120,6 @@ function unconfigure(canvasContext::GPUCanvasContextOffline)
     canvasContext.device = nothing
     canvasContext.format = nothing
     canvasContext.usage = nothing
-    canvasContext.colorSpance = nothing
     canvasContext.compositingAlphaMode = nothing
     canvasContext.size = nothing
 end

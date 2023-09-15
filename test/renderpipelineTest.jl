@@ -19,7 +19,7 @@ shaderSource =
             @builtin(position) pos: vec4<f32>,
         };
 
-        @stage(vertex)
+        @vertex
         fn vs_main(in: VertexInput) -> VertexOutput {
             var positions = array<vec2<f32>, 3>(vec2<f32>(0.0, -0.5), vec2<f32>(0.5, 0.5), vec2<f32>(-0.5, 0.7));
             let index = i32(in.vertex_index);
@@ -31,36 +31,23 @@ shaderSource =
             return out;
         }
 
-        @stage(fragment)
+        @fragment
         fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return in.color;
         }
         """,
-    ) |> Ref
-
-canvas = WGPUCore.defaultInit(WGPUCore.WGPUCanvas);
+    )
+canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
-shadercode = WGPUCore.loadWGSL(shaderSource[]) |> first;
-cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing);
+shaderInfo = WGPUCore.loadWGSL(shaderSource);
+cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderInfo.shaderModuleDesc, nothing, nothing);
 cshaderRef = cshader |> Ref
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPUCore.makeEntryList(bindingLayouts))
-cBindingsList = Ref(WGPUCore.makeBindGroupEntryList(bindings))
-bindGroupLayout =
-    WGPUCore.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPUCore.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
-if bindGroupLayout.internal[] == C_NULL
-    bindGroupLayouts = C_NULL
-else
-    bindGroupLayouts = map((x) -> x.internal[], [bindGroupLayout])
-end
-
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
-
 
 renderpipelineOptions = [
     WGPUCore.GPUVertexState => [
@@ -119,16 +106,16 @@ function createRenderPipeline(
         renderArgs[state.first] = obj
         @info obj
     end
-    vertexState = renderArgs[WGPUCore.GPUVertexState].internal
-    primitiveState = renderArgs[WGPUCore.GPUPrimitiveState].internal
-    depthStencilState = renderArgs[WGPUCore.GPUDepthStencilState].internal
-    multiSampleState = renderArgs[WGPUCore.GPUMultiSampleState].internal
-    fragmentState = renderArgs[WGPUCore.GPUFragmentState].internal
+    vertexState = renderArgs[WGPUCore.GPUVertexState]
+    primitiveState = renderArgs[WGPUCore.GPUPrimitiveState]
+    depthStencilState = renderArgs[WGPUCore.GPUDepthStencilState]
+    multiSampleState = renderArgs[WGPUCore.GPUMultiSampleState]
+    fragmentState = renderArgs[WGPUCore.GPUFragmentState]
     return renderArgs
     pipelineDesc =
         WGPUCore.partialInit(
             WGPUCore.WGPURenderPipelineDescriptor;
-            label = pointer(label),
+            label = toCString(label),
             layout = pipelinelayout.internal[],
             vertex = vertexState[],
             primitive = primitiveState[],
@@ -177,7 +164,7 @@ vertexAttrib2 = WGPUCore.createEntry(
 
 Test.@testset "RenderPipeline" begin
     renderFragment = renderPipeline[WGPUCore.GPUFragmentState]
-    fs = unsafe_load(convert(Ptr{WGPUCore.WGPUFragmentState}, renderFragment.internal[]))
+    fs = unsafe_load(renderFragment.internal[] |> ptr)
     Test.@test unsafe_string(fs.entryPoint) == "fs_main"
 
     fsColorTarget = unsafe_load(fs.targets)
@@ -200,14 +187,10 @@ Test.@testset "RenderPipeline" begin
     buf1 = unsafe_wrap(Vector{WGPUCore.WGPUVertexBufferLayout}, vs.buffers, vs.bufferCount)
     # check if buffers is alive
     Test.@test vs.buffers != C_NULL
-    Test.@test attr1 == vertexAttrib1.internal[]
+    Test.@test attr1 == vertexAttrib1.internal |> concrete
     Test.@test attrs == [attr1, attr2]
-    Test.@test attr2 == vertexAttrib2.internal[]
+    Test.@test attr2 == vertexAttrib2.internal |> concrete
 
 end
 
 # renderPipeline = nothing
-
-GC.gc(true)
-
-GLFW.DestroyWindow(canvas.windowRef[])

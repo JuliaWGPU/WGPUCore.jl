@@ -77,7 +77,6 @@ end
 function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
     windowRef = Ref{GLFW.Window}()
     surfaceRef = Ref{WGPUSurface}()
-    surfaceDescriptorRef = Ref{WGPUSurfaceDescriptor}()
     title = "GLFW WGPU Window"
     GLFW.Init()
     GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
@@ -87,22 +86,23 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
     wantLayer(nswindow[])
     setMetalLayer(nswindow[], metalLayer[])
     metalSurfaceRef =
-        partialInit(
+        cStruct(
             WGPUSurfaceDescriptorFromMetalLayer;
-            chain = partialInit(
+            chain = cStruct(
                 WGPUChainedStruct;
                 next = C_NULL,
                 sType = WGPUSType_SurfaceDescriptorFromMetalLayer,
-            ),
+            ) |> concrete,
             layer = metalLayer[],
-        ) |> Ref
-    surfaceDescriptorRef[] = partialInit(
+        )
+    surfaceDescriptorRef = cStruct(
         WGPUSurfaceDescriptor;
         label = C_NULL,
-        nextInChain = pointer_from_objref(metalSurfaceRef),
+        nextInChain = metalSurfaceRef |> ptr,
     )
+    instance = getWGPUInstance()
     surfaceRef[] =
-        wgpuInstanceCreateSurface(C_NULL, pointer_from_objref(surfaceDescriptorRef))
+        wgpuInstanceCreateSurface(instance, surfaceDescriptorRef |> ptr)
     title = "GLFW Window"
     canvas = GLFWMacCanvas(
         title,
@@ -292,7 +292,6 @@ mutable struct GPUCanvasContext
     device::Any
     format::WGPUTextureFormat
     usage::WGPUTextureUsage
-    colorSpace::WGPUPredefinedColorSpace
     compositingAlphaMode::Any
     size::Any
     physicalSize::Any
@@ -342,7 +341,6 @@ function configure(
     format,
     usage,
     viewFormats,
-    colorSpace,
     compositingAlphaMode,
     size,
 )
@@ -350,7 +348,6 @@ function configure(
     canvasContext.device = device
     canvasContext.format = format
     canvasContext.usage = usage
-    canvasContext.colorSpance = colorSpace
     canvasContext.compositingAlphaMode = compositingAlphaMode
     canvasContext.size = size
 end
@@ -359,7 +356,6 @@ function unconfigure(canvasContext::GPUCanvasContext)
     canvasContext.device = nothing
     canvasContext.format = nothing
     canvasContext.usage = nothing
-    canvasContext.colorSpance = nothing
     canvasContext.compositingAlphaMode = nothing
     canvasContext.size = nothing
 end
@@ -423,14 +419,14 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
     canvasCntxt.usage = WGPUTextureUsage_RenderAttachment
     presentMode = WGPUPresentMode_Fifo
     swapChain =
-        partialInit(
+        cStruct(
             WGPUSwapChainDescriptor;
             usage = canvasCntxt.usage,
             format = canvasCntxt.format,
             width = max(1, pSize[1]),
             height = max(1, pSize[2]),
             presentMode = presentMode,
-        ) |> Ref
+        )
     if canvasCntxt.surfaceId == nothing
         canvasCntxt.surfaceId = getSurfaceIdFromCanvas(canvas)
     end
@@ -438,7 +434,7 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
         wgpuDeviceCreateSwapChain(
             canvasCntxt.device.internal[],
             canvasCntxt.surfaceId,
-            swapChain,
+            swapChain |> ptr,
         ) |> Ref
 end
 

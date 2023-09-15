@@ -28,7 +28,7 @@ shaderSource = Vector{UInt8}(
         @builtin(position) pos: vec4<f32>,
     };
 
-    @stage(vertex)
+    @vertex
     fn vs_main(in: VertexInput) -> VertexOutput {
         let ndc: vec4<f32> = r_locals.transform * in.pos;
         var out: VertexOutput;
@@ -43,7 +43,7 @@ shaderSource = Vector{UInt8}(
     @group(0) @binding(2)
     var r_sampler: sampler;
 
-    @stage(fragment)
+    @fragment
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let value = textureSample(r_tex, r_sampler, in.texcoord);
         return vec4<f32>(value);
@@ -53,9 +53,9 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()
-shadercode = WGPUCore.loadWGSL(shaderSource) |> first;
+shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
-    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode, nothing, nothing));
+    Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing));
 
 flatten(x) = reshape(x, (:,))
 
@@ -194,10 +194,8 @@ bindings = [
     WGPUCore.GPUSampler => [:binding => 2, :sampler => sampler],
 ]
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
 
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 
 presentContext = WGPUCore.getContext(canvas)
 
@@ -250,8 +248,9 @@ renderpipelineOptions = [
     ],
 ]
 
-renderPipeline =
-    WGPUCore.createRenderPipeline(gpuDevice, pipelineLayout, renderpipelineOptions; label = " ")
+using Debugger
+
+renderPipeline = WGPUCore.createRenderPipeline(gpuDevice, pipelineLayout, renderpipelineOptions; label = " ")
 
 
 prevTime = time()
@@ -307,7 +306,7 @@ try
         WGPUCore.setPipeline(renderPass, renderPipeline)
         WGPUCore.setIndexBuffer(renderPass, indexBuffer, "Uint32")
         WGPUCore.setVertexBuffer(renderPass, 0, vertexBuffer)
-        WGPUCore.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
+        WGPUCore.setBindGroup(renderPass, 0, pipelineLayout.bindGroup, UInt32[], 0, 99)
         WGPUCore.drawIndexed(
             renderPass,
             Int32(indexBuffer.size / sizeof(UInt32));
