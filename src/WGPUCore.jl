@@ -1315,7 +1315,7 @@ end
 function setScissorRect(renderPass::GPURenderPassEncoder, x, y, width, height)
     wgpuRenderPassEncoderSetScissorRect(
         renderPass.internal[],
-        int.([x, y, width, height])...,
+        Int.([x, y, width, height])...,
     )
 end
 
