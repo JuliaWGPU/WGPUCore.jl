@@ -2,40 +2,21 @@ abstract type GLFWCanvas end
 
 using GLFW_jll
 using GLFW
+using GLFW: libglfw
 
 using WGPUCore
 
 using Pkg.Artifacts
 
-artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
 
-cocoa_hash = artifact_hash("Cocoa", artifact_toml)
-
-cocoalibpath = artifact_path(cocoa_hash)
-
-function GetCocoaWindow(window::GLFW.Window)
-	ccall((:glfwGetCocoaWindow, libglfw), Ptr{Nothing}, (Ptr{GLFW.Window},), window.handle)
+function GetWin32Window(window)
+    ccall((:glfwGetWin32Window, libglfw), Ptr{Nothing}, (Ptr{GLFW.Window},), window.handle)
 end
 
-const libcocoa = joinpath(cocoalibpath, "cocoa")
-
-function getMetalLayer()
-    ccall((:getMetalLayer, libcocoa), Ptr{UInt8}, ())
+function GetModuleHandle(ptr)
+    ccall((:GetModuleHandleA, "kernel32"), stdcall, Ptr{UInt32}, (UInt32,), ptr)
 end
 
-function wantLayer(nswindow)
-    ccall((:wantLayer, libcocoa), Cvoid, (Ptr{Nothing},), nswindow)
-end
-
-function setMetalLayer(nswindow, metalLayer)
-    ccall(
-        (:setMetalLayer, libcocoa),
-        Cvoid,
-        (Ptr{Nothing}, Ptr{Nothing}),
-        nswindow,
-        metalLayer,
-    )
-end
 
 mutable struct MouseState
     leftButton::Any
@@ -48,24 +29,22 @@ initMouse(::Type{MouseState}) = begin
     MouseState(false, false, false, false)
 end
 
-mutable struct GLFWMacCanvas <: GLFWCanvas
+mutable struct GLFWWinCanvas <: GLFWCanvas
     title::String
     size::Tuple
     windowRef::Any # This has to be platform specific may be
     surfaceRef::Any
     surfaceDescriptorRef::Any
-    metalSurfaceRef::Any
-    nsWindow::Any
-    metalLayer::Any
     needDraw::Any
     requestDrawTimerRunning::Any
     changingPixelRatio::Any
     isMinimized::Bool
-    device::Union{GPUDevice, Nothing}
+    device::Any
     context::Any
     drawFunc::Any
     mouseState::Any
 end
+
 
 function attachDrawFunction(canvas::GLFWCanvas, f)
     if canvas.drawFunc == nothing
@@ -73,51 +52,46 @@ function attachDrawFunction(canvas::GLFWCanvas, f)
     end
 end
 
-
-function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
+function defaultCanvas(::Type{GLFWWinCanvas}; size = (500, 500))
     windowRef = Ref{GLFW.Window}()
     surfaceRef = Ref{WGPUSurface}()
-    title = "GLFW WGPU Window"
+    title = "GLFW WIN32 Window"
     GLFW.Init()
     GLFW.WindowHint(GLFW.CLIENT_API, GLFW.NO_API)
     windowRef[] = window = GLFW.CreateWindow(size..., title)
-    nswindow = GetCocoaWindow(windowRef[]) |> Ref
-    metalLayer = getMetalLayer() |> Ref
-    wantLayer(nswindow[])
-    setMetalLayer(nswindow[], metalLayer[])
-    metalSurfaceRef =
+    winHandleRef = GetWin32Window(windowRef[]) |> Ref
+    hinstance = GetModuleHandle(C_NULL)
+    winSurfaceRef =
         cStruct(
-            WGPUSurfaceDescriptorFromMetalLayer;
+            WGPUSurfaceDescriptorFromWindowsHWND;
             chain = cStruct(
                 WGPUChainedStruct;
                 next = C_NULL,
-                sType = WGPUSType_SurfaceDescriptorFromMetalLayer,
+                sType = WGPUSType_SurfaceDescriptorFromWindowsHWND,
             ) |> concrete,
-            layer = metalLayer[],
+            hinstance = hinstance,
+            hwnd = winHandleRef[]
         )
     surfaceDescriptorRef = cStruct(
         WGPUSurfaceDescriptor;
         label = C_NULL,
-        nextInChain = metalSurfaceRef |> ptr,
+        nextInChain = winSurfaceRef |> ptr,
     )
     instance = getWGPUInstance()
     surfaceRef[] =
         wgpuInstanceCreateSurface(instance[], surfaceDescriptorRef |> ptr)
     title = "GLFW Window"
-    canvas = GLFWMacCanvas(
+    canvas = GLFWWinCanvas(
         title,
         size,
         windowRef,
         surfaceRef,
         surfaceDescriptorRef,
-        metalSurfaceRef,
-        nswindow,
-        metalLayer,
         false,
         nothing,
         false,
         false,
-        nothing,
+        device,
         nothing,
         nothing,
         initMouse(MouseState),
@@ -140,6 +114,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
 
     return canvas
 end
+
 
 function setJoystickCallback(canvas::GLFWCanvas, f = nothing)
     if f == nothing
@@ -284,7 +259,7 @@ end
 
 
 mutable struct GPUCanvasContext
-    canvasRef::Ref{GLFWMacCanvas}
+    canvasRef::Ref{GLFWWinCanvas}
     surfaceSize::Any
     surfaceId::Any
     internal::Any
@@ -299,31 +274,22 @@ mutable struct GPUCanvasContext
     logicalSize::Any
 end
 
-            # canvasRef = Ref(gpuCanvas),
-            # surfaceSize = (-1, -1),
-            # surfaceId = gpuCanvas.surfaceRef[],
-            # internal = nothing,
-            # device = gpuCanvas.device,
-            # physicalSize = gpuCanvas.size,
-            # compositingAlphaMode = nothing,
-
-
-function getContext(gpuCanvas::GLFWMacCanvas)
+function getContext(gpuCanvas::GLFWWinCanvas)
     if gpuCanvas.context == nothing
         context = GPUCanvasContext(
-			Ref(gpuCanvas),		    	# canvasRef::Ref{GLFWMacCanvas}
-			(-1, -1),			    	# surfaceSize::Any
-			gpuCanvas.surfaceRef[],	    # surfaceId::Any
-			nothing,				    # internal::Any
-			nothing,				    # currentTexture::Any
-			gpuCanvas.device,		    # device::Any
-			WGPUTextureFormat(0),		# format::WGPUTextureFormat
-			WGPUTextureUsage(0),		# usage::WGPUTextureUsage
-			nothing,				    # compositingAlphaMode::Any
-			nothing,				    # size::Any
-			gpuCanvas.size,			    # physicalSize::Any
-			nothing,	    			# pixelRatio::Any
-			nothing,				    # logicalSize::Any
+            Ref(gpuCanvas),              # canvasRef::Ref{GLFWWinCanvas}
+            (-1, -1),                    # surfaceSize::Any
+            gpuCanvas.surfaceRef[],      # surfaceId::Any
+            nothing,                     # internal::Any
+            nothing,                     # currentTexture::Any
+            gpuCanvas.device,            # device::Any
+            WGPUTextureFormat_R8Unorm,   # format::WGPUTextureFormat
+            WGPUTextureUsage(0),         # usage::WGPUTextureUsage
+            nothing,                     # compositingAlphaMode::Any
+            nothing,                     # size::Any
+            gpuCanvas.size,              # physicalSize::Any
+            nothing,                     # pixelRatio::Any
+            nothing,                     # logicalSize::Any
         )
         gpuCanvas.context = context
     else
@@ -384,7 +350,7 @@ function determineSize(cntxt::GPUCanvasContext)
 end
 
 
-function getPreferredFormat(canvas::GLFWMacCanvas)
+function getPreferredFormat(canvas::GLFWWinCanvas)
     return getEnum(WGPUTextureFormat, "BGRA8Unorm")
 end
 
@@ -452,8 +418,8 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
         ) |> Ref
 end
 
-function destroyWindow(canvas::GLFWMacCanvas)
+function destroyWindow(canvas::GLFWWinCanvas)
     GLFW.DestroyWindow(canvas.windowRef[])
 end
 
-const WGPUCanvas = GLFWMacCanvas
+const WGPUCanvas = GLFWWinCanvas

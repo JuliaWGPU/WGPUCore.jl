@@ -107,3 +107,7 @@ end
 function removeEventHandler(gui::WGPUAutoGUI, types)
 
 end
+
+function getCanvas()
+    
+end

@@ -48,7 +48,7 @@ function defaultCanvas(::Type{OffscreenCanvas})
 end
 
 
-mutable struct GPUCanvasContextOffline
+mutable struct GPUCanvasContextOffscreen
     canvasRef::Ref{OffscreenCanvas}
     internal::Any
     device::Any
@@ -66,16 +66,20 @@ end
 
 function getContext(gpuCanvas::OffscreenCanvas)
     if gpuCanvas.canvasContext == nothing
-        gpuCanvas.canvasContext = partialInit(
-            GPUCanvasContextOffline;
-            canvasRef = Ref(gpuCanvas),
-            surfaceSize = (-1, -1),
-            internal = nothing,
-            device = gpuCanvas.device,
-            compositingAlphaMode = nothing,
-            physicalSize = (500, 500),
-            pixelRatio = (1, 1),
-            usage = getEnum(WGPUTextureUsage, "RenderAttachment"),
+        gpuCanvas.canvasContext = GPUCanvasContextOffscreen(
+            Ref(gpuCanvas),             # canvasRef::Ref{OffscreenCanvas}
+            nothing,                    # internal::Any
+            gpuCanvas.device,           # device::Any
+            nothing,                    # currentTexture::Any
+            nothing,                    # currentTextureView::Any
+            nothing,                    # format::WGPUTextureFormat
+            getEnum(WGPUTextureUsage, "RenderAttachment"), # usage::WGPUTextureUsage
+            nothing,                    # compositingAlphaMode::Any
+            nothing,                    # size::Any
+            (500, 500),                 # physicalSize::Any
+            (1, 1),                     # pixelRatio::Any
+            nothing,                    # logicalSize::Any
+            (-1, -1)                    # surfaceSize::Any            
         )
     end
     return gpuCanvas.canvasContext
