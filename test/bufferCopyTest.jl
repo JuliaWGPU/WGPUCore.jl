@@ -50,4 +50,4 @@ GC.gc(true)
 
 # gpuDevice = nothing
 
-WGPUCore.destroy(gpuDevice[])
+WGPUCore.destroy(gpuDevice)

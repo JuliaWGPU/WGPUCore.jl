@@ -1,71 +1,8 @@
 ## Load WGPU
 using WGPUCore
-using WGPUCore: defaultInit
-using WGPUCore: partialInit
-using WGPUCore: pointerRef
-using WGPUCore: toCString
-using WGPUCore: SetLogLevel
-using WGPUNative
-## Constants
-numbers = UInt32[1, 2, 3, 4]
 
-const DEFAULT_ARRAY_SIZE = 256
+device = requestDevice()
 
-SetLogLevel(WGPULogLevel_Debug)
-## Init Window Size
-
-const width = 200
-const height = 200
-
-println("Current Version : $(wgpuGetVersion())")
-
-## 
-
-adapter = Ref(WGPUAdapter())
-device = Ref(WGPUDevice())
-
-adapterOptions = cStruct(WGPURequestAdapterOptions) |> ptr
-
-function request_adapter_callback(
-    a::WGPURequestAdapterStatus,
-    b::WGPUAdapter,
-    c::Ptr{Cchar},
-    d::Ptr{Nothing},
-)
-    global adapter[] = b
-    return nothing
-end
-
-requestAdapterCallback = @cfunction(
-    request_adapter_callback,
-    Cvoid,
-    (WGPURequestAdapterStatus, WGPUAdapter, Ptr{Cchar}, Ptr{Cvoid})
-)
-
-## device callback
-
-function request_device_callback(
-    a::WGPURequestDeviceStatus,
-    b::WGPUDevice,
-    c::Ptr{Cchar},
-    d::Ptr{Nothing},
-)
-    global device[] = b
-    return nothing
-end
-
-requestDeviceCallback = @cfunction(
-    request_device_callback,
-    Cvoid,
-    (WGPURequestDeviceStatus, WGPUDevice, Ptr{Cchar}, Ptr{Cvoid})
-)
-
-instance = wgpuCreateInstance(WGPUInstanceDescriptor(0) |> Ref)
-## request adapter 
-
-wgpuInstanceRequestAdapter(instance, adapterOptions, requestAdapterCallback, adapter)
-
-wgpuAdapterRequestDevice(adapter[], C_NULL, requestDeviceCallback, device[])
 
 ## Buffer dimensions
 

@@ -50,6 +50,7 @@ shaderSource = Vector{UInt8}(
 
 canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()
+canvas.device = gpuDevice
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
     WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing);
@@ -154,11 +155,11 @@ textureView = WGPUCore.createView(texture)
 
 dstLayout = [
     :dst => [
-        :texture => texture |> Ref,
+        :texture => texture,
         :mipLevel => 0,
         :origin => ((0, 0, 0) .|> Float32),
     ],
-    :textureData => textureData |> Ref,
+    :textureData => textureData,
     :layout => [
         :offset => 0,
         :bytesPerRow => size(textureData) |> last, # TODO
@@ -196,14 +197,11 @@ bindings = [
     WGPUCore.GPUSampler => [:binding => 2, :sampler => sampler],
 ]
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
-
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 
 presentContext = WGPUCore.getContext(canvas)
 
-WGPUCore.determineSize(presentContext[])
+WGPUCore.determineSize(presentContext)
 
 WGPUCore.config(presentContext, device = gpuDevice, format = renderTextureFormat)
 
@@ -268,7 +266,7 @@ try
 
         (tmpBuffer, _) =
             WGPUCore.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
-        currentTextureView = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+        currentTextureView = WGPUCore.getCurrentTexture(presentContext) |> Ref
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "CMD ENCODER")
         WGPUCore.copyBufferToBuffer(
             cmdEncoder,

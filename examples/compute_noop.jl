@@ -1,9 +1,8 @@
 ## Load WGPU
 using WGPUCore
-
 using WGPUNative
 
-WGPUCore.SetLogLevel(WGPULogLevel_Debug)
+SetLogLevel(WGPULogLevel_Debug)
 
 src = """
       @group(0) @binding(0)
@@ -29,7 +28,7 @@ for i = 1:n
     data[i] = i
 end
 
-# canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
+# canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
 gpuDevice = WGPUCore.getDefaultDevice()
 
 shaderInfo = WGPUCore.loadWGSL(shaderSource)
