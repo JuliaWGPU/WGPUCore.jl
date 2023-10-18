@@ -80,11 +80,11 @@ function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
     )
     instance = getWGPUInstance()
     surfaceRef[] =
-        wgpuInstanceCreateSurface(instance, surfaceDescriptorRef |> ptr)
+        wgpuInstanceCreateSurface(instance[], surfaceDescriptorRef |> ptr)
     title = "GLFW Window"
     canvas = LinuxCanvas(
         title,
-        size,
+        windowSize,
         displayRef,
         windowRef,
         windowX11Ref,
@@ -95,7 +95,7 @@ function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
         nothing,
         false,
         false,
-        backend.device,
+        device,
         nothing,
         nothing,
         defaultInit(MouseState),
@@ -279,15 +279,20 @@ end
 
 function getContext(gpuCanvas::LinuxCanvas)
     if gpuCanvas.context == nothing
-        context = partialInit(
-            GPUCanvasContext;
-            canvasRef = Ref(gpuCanvas),
-            surfaceSize = (-1, -1),
-            surfaceId = gpuCanvas.surfaceRef[],
-            internal = nothing,
-            device = gpuCanvas.device,
-            physicalSize = gpuCanvas.size,
-            compositingAlphaMode = nothing,
+        context = GPUCanvasContext(
+            Ref(gpuCanvas),
+            (-1, -1),
+            gpuCanvas.surfaceRef[],
+            nothing,
+            nothing,
+            gpuCanvas.device,
+            WGPUTextureFormat_R8Unorm,
+            WGPUTextureUsage(0),
+            nothing,
+            nothing,
+            gpuCanvas.size,
+            nothing,
+            nothing
         )
         gpuCanvas.context = context
     else
