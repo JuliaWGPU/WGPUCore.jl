@@ -1,7 +1,7 @@
 ## Load WGPU
-# using WGPUCore
+using WGPUCore
 using WGPUNative
-# include("$(pkgdir(WGPUCore))/examples/requestDevice.jl")
+include("$(pkgdir(WGPUCore))/examples/requestDevice.jl")
 # include("$(pkgdir(WGPUCore))/src/shader.jl")
 ## Constants
 numbers = UInt32[1, 2, 3, 4]
@@ -18,7 +18,7 @@ println("Current Version : $(wgpuGetVersion())")
 SetLogLevel(WGPULogLevel_Debug)
 
 ## WGSL loading
-(shaderSource, _) = load_wgsl("examples/shader.wgsl")
+(shaderSource, _) = WGPUCore.load_wgsl("examples/shader.wgsl")
 
 ##
 shader = wgpuDeviceCreateShaderModule(

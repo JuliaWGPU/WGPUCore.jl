@@ -93,7 +93,7 @@ renderPipeline = WGPUCore.createRenderPipeline(
 
 try
     while !GLFW.WindowShouldClose(canvas.windowRef[])
-        nextTexture = WGPUCore.getCurrentTexture(presentContext[])
+        nextTexture = WGPUCore.getCurrentTexture(presentContext)
         nextTextureRef = Ref(nextTexture)
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
         renderPassOptions =
@@ -117,7 +117,7 @@ try
         WGPUCore.draw(renderPass, 3; instanceCount = 1, firstVertex = 0, firstInstance = 0)
         WGPUCore.endEncoder(renderPass)
         WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
-        WGPUCore.present(presentContext[])
+        WGPUCore.present(presentContext)
         GLFW.PollEvents()
     end
 finally

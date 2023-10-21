@@ -1,9 +1,10 @@
 ## Load WGPU
 using WGPUCore
+using WGPUNative
+adapter = WGPUCore.requestAdapter()
+gpuDevice = WGPUCore.requestDevice(adapter)
 
-device = requestDevice()
-
-
+width, height = (500, 500)
 ## Buffer dimensions
 
 struct BufferDimensions
@@ -27,11 +28,11 @@ bufferDimensions = BufferDimensions(width, height)
 bufferSize = bufferDimensions.padded_bytes_per_row * bufferDimensions.height
 
 outputBuffer = wgpuDeviceCreateBuffer(
-    device[],
+    gpuDevice.internal[],
 	cStruct(
 	    WGPUBufferDescriptor;
 	    nextInChain = C_NULL,
-	    label = toCString("Output Buffer"),
+	    label = WGPUCore.toCString("Output Buffer"),
 	    usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
 	    size = bufferSize,
 	    mappedAtCreation = false,
@@ -50,7 +51,7 @@ textureExtent = cStruct(
 ## texture
 
 texture = wgpuDeviceCreateTexture(
-    device[],
+    gpuDevice.internal[],
 	cStruct(
 	    WGPUTextureDescriptor;
 	    nextInChain = C_NULL,
@@ -67,7 +68,7 @@ texture = wgpuDeviceCreateTexture(
 ## encoder
 
 encoder = wgpuDeviceCreateCommandEncoder(
-    device[],
+    gpuDevice.internal[],
     cStructPtr(WGPUCommandEncoderDescriptor),
 )
 
@@ -130,7 +131,7 @@ wgpuCommandEncoderCopyTextureToBuffer(
 )
 
 ## queue
-queue = wgpuDeviceGetQueue(device[])
+queue = wgpuDeviceGetQueue(gpuDevice.internal[])
 
 ## commandBuffer
 cmdBuffer = wgpuCommandEncoderFinish(
@@ -157,7 +158,7 @@ print(asyncstatus[])
 
 ## device polling
 
-wgpuDevicePoll(device[], true, C_NULL)
+wgpuDevicePoll(gpuDevice.internal[], true, C_NULL)
 
 ## times
 times = convert(Ptr{UInt8}, wgpuBufferGetMappedRange(outputBuffer, 0, bufferSize))

@@ -8,7 +8,6 @@ mutable struct GPUAdapter
     properties::Any
     options::Any
     supportedLimits::Any
-    extras::Any
     backendType::WGPUBackendType
 end
 
@@ -37,22 +36,11 @@ function requestAdapter(;
     canvas = nothing,
     powerPreference = WGPUPowerPreference_HighPerformance,
 )
-    chain = cStruct(
-        WGPUChainedStruct;
-        sType = WGPUSType(Int64(WGPUSType_AdapterExtras)),
-    )
     
     backendType = getDefaultBackendType()
 
-    extras = cStruct(
-        WGPUAdapterExtras;
-        backend=backendType,
-        chain = chain |> concrete
-    )
-
     adapterOptions = cStruct(WGPURequestAdapterOptions)
     adapterOptions.compatibleSurface = C_NULL
-    adapterOptions.nextInChain = rawCast(WGPUChainedStruct, extras)
     adapterOptions.powerPreference = powerPreference
     adapterOptions.forceFallbackAdapter = false
     
@@ -92,7 +80,6 @@ function requestAdapter(;
         supportedLimits,
         properties,
         adapterOptions,
-        extras,
         backendType
     )
 end

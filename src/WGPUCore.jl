@@ -1506,7 +1506,7 @@ function destroy(texView::GPUTextureView)
     if texView.internal[] != C_NULL
         tmpTex = texView.internal[]
         texView.internal[] = C_NULL
-        wgpuTextureViewDrop(tmpTex)
+        wgpuTextureViewRelease(tmpTex)
     end
 end
 
@@ -1523,7 +1523,7 @@ function destroy(tex::GPUTexture)
     if tex.internal[] != C_NULL
         tmpTex = tex.internal[]
         tex.internal[] = C_NULL
-        wgpuTextureDrop(tmpTex)
+        wgpuTextureRelease(tmpTex)
     end
 end
 
@@ -1540,7 +1540,7 @@ function destroy(sampler::GPUSampler)
     if sampler.internal[] != C_NULL
         tmpSampler = sampler.internal[]
         sampler.internal[] = C_NULL
-        wgpuSamplerDrop(tmpSampler)
+        wgpuSamplerRelease(tmpSampler)
     end
 end
 
@@ -1557,7 +1557,7 @@ function destroy(layout::GPUBindGroupLayout)
     if layout.internal[] != C_NULL
         tmpLayout = layout.internal[]
         layout.internal[] = C_NULL
-        wgpuBindGroupLayoutDrop(tmpLayout)
+        wgpuBindGroupLayoutRelease(tmpLayout)
     end
 end
 
@@ -1574,7 +1574,7 @@ function destroy(bindGroup::GPUBindGroup)
     if bindGroup.internal[] != C_NULL
         tmpBindGroup = bindGroup.internal[]
         bindGroup.internal[] = C_NULL
-        wgpuBindGroupDrop(tmpBindGroup)
+        wgpuBindGroupRelease(tmpBindGroup)
     end
 end
 
@@ -1591,7 +1591,7 @@ function destroy(layout::GPUPipelineLayout)
     if layout.internal[] != C_NULL
         tmpLayout = layout.internal[]
         layout.internal[] = C_NULL
-        wgpuPipelineLayoutDrop(tmpLayout)
+        wgpuPipelineLayoutRelease(tmpLayout)
     end
 end
 
@@ -1608,7 +1608,7 @@ function destroy(shader::GPUShaderModule)
     if shader.internal[] != C_NULL
         tmpShader = shader.internal[]
         shader.internal[] = C_NULL
-        wgpuShaderModuleDrop(tmpShader)
+        wgpuShaderModuleRelease(tmpShader)
     end
 end
 
@@ -1625,7 +1625,7 @@ function destroy(pipeline::GPUComputePipeline)
     if pipeline.internal[] != C_NULL
         tmpPipeline = pipeline.internal[]
         pipeline.internal[] = C_NULL
-        wgpuComputePipelineDrop(tmpPipeline)
+        wgpuComputePipelineRelease(tmpPipeline)
     end
 end
 
@@ -1642,7 +1642,7 @@ function destroy(pipeline::GPURenderPipeline)
     if pipeline.internal[] != C_NULL
         tmpPipeline = pipeline.internal[]
         pipeline.internal[] = C_NULL
-        wgpuRenderPipelineDrop(tmpPipeline)
+        wgpuRenderPipelineRelease(tmpPipeline)
     end
 end
 
@@ -1659,7 +1659,7 @@ function destroy(gpuBuffer::GPUBuffer)
     if gpuBuffer.internal[] != C_NULL
         tmpBufferPtr = gpuBuffer.internal[]
         gpuBuffer.internal[] = C_NULL
-        wgpuBufferDrop(tmpBufferPtr)
+        wgpuBufferRelease(tmpBufferPtr)
     end
 end
 
@@ -1676,7 +1676,7 @@ function destroy(cmdBuffer::GPUCommandBuffer)
     if cmdBuffer.internal[] != C_NULL
         tmpCmdBufferPtr = cmdBuffer.internal[]
         cmdBuffer.internal[] = C_NULL
-        wgpuCommandBufferDrop(tmpCmdBufferPtr)
+        wgpuCommandBufferRelease(tmpCmdBufferPtr)
     end
 end
 
@@ -1693,7 +1693,7 @@ function destroy(cmdEncoder::GPUCommandEncoder)
     if cmdEncoder.internal[] != C_NULL
         tmpCmdEncoderPtr = cmdEncoder.internal[]
         cmdEncoder.internal[] = C_NULL
-        wgpuCommandEncoderDrop(tmpCmdEncoderPtr)
+        wgpuCommandEncoderRelease(tmpCmdEncoderPtr)
     end
 end
 
@@ -1709,7 +1709,7 @@ end
 function destroy(adapter::GPUAdapter)
     if adapter.internal[] != C_NULL
         tmpAdapterPtr = adapter.internal[]
-        wgpuAdapterDrop(tmpAdapterPtr)
+        wgpuAdapterRelease(tmpAdapterPtr)
         adapter.internal = C_NULL
     end
 end
@@ -1734,7 +1734,7 @@ function destroy(device::GPUDevice)
     if device.internal[] != C_NULL
         tmpDevicePtr = device.internal[]
         device.internal[] = C_NULL
-        wgpuDeviceDrop(tmpDevicePtr)
+        wgpuDeviceRelease(tmpDevicePtr)
     end
 end
 
