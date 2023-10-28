@@ -46,17 +46,20 @@ cshader =
 bindingLayouts = []
 bindings = []
 
-(bindGroupLayouts, bindGroup) =
-    WGPUCore.makeBindGroupAndLayout(gpuDevice, bindingLayouts, bindings)
+pipelineLayout = WGPUCore.createPipelineLayout(
+    gpuDevice, 
+    "PipeLineLayout",
+    bindingLayouts,
+    bindings 
+)
 
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayouts)
 # swapChainFormat = wgpuSurfaceGetPreferredFormat(canvas.surface[], gpuDevice.adapter.internal[])
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 @info swapChainFormat
 presentContext = WGPUCore.getContext(canvas)
-ctxtSize = WGPUCore.determineSize(presentContext[]) .|> Int
+ctxtSize = WGPUCore.determineSize(presentContext) .|> Int
 
-WGPUCore.config(presentContext, device = gpuDevice, format = swapChainFormat)
+WGPUCore.config(presentContext |> Ref, device = gpuDevice, format = swapChainFormat)
 
 renderpipelineOptions = [
     WGPUCore.GPUVertexState =>
@@ -109,14 +112,14 @@ try
         [ "CopyDst", "CopySrc"],
         false,
     )
-    nextTexture = WGPUCore.getCurrentTexture(presentContext[]) |> Ref
+    nextTexture = WGPUCore.getCurrentTexture(presentContext)
     cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "cmdEncoder")
     renderPassOptions =
         [
             WGPUCore.GPUColorAttachments => [
                 :attachments => [
                     WGPUCore.GPUColorAttachment => [
-                        :view => nextTexture[],
+                        :view => nextTexture,
                         :resolveTarget => C_NULL,
                         :clearValue => (0.0, 0.0, 0.0, 1.0),
                         :loadOp => WGPULoadOp_Clear,
@@ -134,7 +137,7 @@ try
     WGPUCore.copyTextureToBuffer(
         cmdEncoder,
         [
-            :texture => nextTexture[],
+            :texture => nextTexture,
             :mipLevel => 0,
             :origin => [:x => 0, :y => 0, :z => 0] |> Dict,
         ] |> Dict,
@@ -154,7 +157,7 @@ try
         ] |> Dict,
     )
     WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
-    WGPUCore.present(presentContext[])
+    WGPUCore.present(presentContext)
     data = WGPUCore.readBuffer(gpuDevice, outputBuffer, 0, bufferSize |> Int)
     datareshaped = reshape(data, (4, ((512, 500) |> reverse)...) .|> Int) #hardcoded
     img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, (512, 500)) #hardcoded

@@ -40,7 +40,7 @@ function defaultCanvas(::Type{OffscreenCanvas})
         nothing,
         false,
         false,
-        backend.device,
+        device,
         nothing,
     )
 
@@ -54,7 +54,7 @@ mutable struct GPUCanvasContextOffscreen
     device::Any
     currentTexture::Any
     currentTextureView::Any
-    format::WGPUTextureFormat
+    format::Union{Nothing, WGPUTextureFormat}
     usage::WGPUTextureUsage
     compositingAlphaMode::Any
     size::Any
@@ -104,7 +104,7 @@ function unconfig(a::T) where {T}
 end
 
 function configure(
-    canvasContext::GPUCanvasContextOffline;
+    canvasContext::GPUCanvasContextOffscreen;
     device,
     format,
     usage,
@@ -120,7 +120,7 @@ function configure(
     canvasContext.size = size
 end
 
-function unconfigure(canvasContext::GPUCanvasContextOffline)
+function unconfigure(canvasContext::GPUCanvasContextOffscreen)
     canvasContext.device = nothing
     canvasContext.format = nothing
     canvasContext.usage = nothing
@@ -128,12 +128,12 @@ function unconfigure(canvasContext::GPUCanvasContextOffline)
     canvasContext.size = nothing
 end
 
-function determineSize(cntxt::GPUCanvasContextOffline)
+function determineSize(cntxt::GPUCanvasContextOffscreen)
     psize = cntxt.physicalSize
     cntxt.logicalSize = psize ./ cntxt.pixelRatio
 end
 
-function getPreferredFormat(canvasContext::GPUCanvasContextOffline)
+function getPreferredFormat(canvasContext::GPUCanvasContextOffscreen)
     canvas = canvasCntxt.canvasRef[]
     if canvas != nothing
         return getPreferredFormat(canvas)
@@ -141,19 +141,19 @@ function getPreferredFormat(canvasContext::GPUCanvasContextOffline)
     return getEnum(WGPUTextureFormat, "RGBA8Unorm")
 end
 
-function getCurrentTexture(cntxt::GPUCanvasContextOffline)
+function getCurrentTexture(cntxt::GPUCanvasContextOffscreen)
     createNewTextureMaybe(cntxt)
     return cntxt.currentTextureView
 end
 
-function present(cntxt::GPUCanvasContextOffline)
+function present(cntxt::GPUCanvasContextOffscreen)
     if cntxt.currentTexture != nothing && cntxt.currentTexture.internal[] != C_NULL
         canvas = cntxt.canvasRef[]
         return present(canvas, cntxt.currentTextureView)
     end
 end
 
-function createNewTextureMaybe(canvasCntxt::GPUCanvasContextOffline)
+function createNewTextureMaybe(canvasCntxt::GPUCanvasContextOffscreen)
     canvas = canvasCntxt.canvasRef[]
     pSize = canvasCntxt.physicalSize
     if pSize == canvasCntxt.surfaceSize
