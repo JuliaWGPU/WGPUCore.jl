@@ -1,6 +1,8 @@
 ## Load WGPU
 using WGPUNative
-export SetLogLevel
+export SetLogLevel, logLevel
+
+global logLevel::WGPULogLevel
 
 function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
 		if logLevel == WGPULogLevel_Error
@@ -24,5 +26,6 @@ function SetLogLevel(loglevel::WGPULogLevel)
     logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
     wgpuSetLogCallback(logcallback, C_NULL)
     @info "Setting Log level : $loglevel"
+    global logLevel = loglevel
     wgpuSetLogLevel(loglevel)
 end
