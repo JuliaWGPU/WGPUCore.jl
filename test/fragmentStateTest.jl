@@ -35,7 +35,7 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
+canvas = WGPUCore.getCanvas(:OFFSCREEN);
 gpuDevice = WGPUCore.getDefaultDevice();
 shaderinfo = WGPUCore.loadWGSL(shaderSource);
 cshader =
@@ -43,19 +43,8 @@ cshader =
 
 bindingLayouts = []
 bindings = []
-cBindingLayoutsList = Ref(WGPUCore.makeLayoutEntryList(bindingLayouts))
-cBindingsList = Ref(WGPUCore.makeBindGroupEntryList(bindings))
-bindGroupLayout =
-    WGPUCore.createBindGroupLayout(gpuDevice, "Bind Group Layout", cBindingLayoutsList[])
-bindGroup = WGPUCore.createBindGroup("BindGroup", gpuDevice, bindGroupLayout, cBindingsList[])
 
-if bindGroupLayout.internal[] == C_NULL
-    bindGroupLayouts = C_NULL
-else
-    bindGroupLayouts = map((x) -> x.internal[], [bindGroupLayout])
-end
-
-pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindGroupLayout)
+pipelineLayout = WGPUCore.createPipelineLayout(gpuDevice, "PipeLineLayout", bindingLayouts, bindings)
 swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 
 fStateOptions =
@@ -78,6 +67,3 @@ fs = unsafe_load(fstate.internal[] |> ptr)
 Test.@testset "FragmentState" begin
     Test.@test unsafe_string(fs.entryPoint) == "fs_main"
 end
-
-
-GLFW.DestroyWindow(canvas.windowRef[])

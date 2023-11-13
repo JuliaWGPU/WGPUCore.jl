@@ -37,7 +37,7 @@ shaderSource =
         }
         """,
     )
-canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
+canvas = WGPUCore.getCanvas(:OFFSCREEN);
 gpuDevice = WGPUCore.getDefaultDevice();
 shaderInfo = WGPUCore.loadWGSL(shaderSource);
 cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderInfo.shaderModuleDesc, nothing, nothing);
@@ -168,7 +168,7 @@ Test.@testset "RenderPipeline" begin
     Test.@test unsafe_string(fs.entryPoint) == "fs_main"
 
     fsColorTarget = unsafe_load(fs.targets)
-    Test.@test fsColorTarget.format == WGPUCore.getEnum(WGPUCore.WGPUTextureFormat, "BGRA8Unorm")
+    Test.@test fsColorTarget.format == WGPUCore.getEnum(WGPUCore.WGPUTextureFormat, "RGBA8Unorm")
 
     Test.@test fsColorTarget.writeMask == 0x0000000f
     fsblend = unsafe_load(fsColorTarget.blend)
