@@ -12,7 +12,7 @@ function GetX11Display()
 end
 
 
-mutable struct LinuxCanvas <: AbstractWGPUCanvas
+mutable struct GLFWLinuxCanvas <: AbstractWGPUCanvas
     title::String
     size::Tuple
     displayRef::Any
@@ -32,7 +32,7 @@ mutable struct LinuxCanvas <: AbstractWGPUCanvas
 end
 
 
-function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
+function defaultCanvas(::Type{GLFWLinuxCanvas}; windowSize = (500, 500))
 	displayRef = Ref{Ptr{GLFW.Window}}()
 	windowRef = Ref{GLFW.Window}()
     windowX11Ref = Ref{GLFW.Window}()
@@ -64,7 +64,7 @@ function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
     surfaceRef[] =
         wgpuInstanceCreateSurface(instance[], surfaceDescriptorRef |> ptr)
     title = "GLFW Window"
-    canvas = LinuxCanvas(
+    canvas = GLFWLinuxCanvas(
         title,
         windowSize,
         displayRef,
@@ -80,7 +80,7 @@ function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
         device,
         nothing,
         nothing,
-        defaultInit(MouseState),
+        initMouse(MouseState),
     )
     getContext(canvas)
     setJoystickCallback(canvas)
@@ -102,8 +102,8 @@ function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
 end
 
 
-mutable struct GPUCanvasContext
-    canvasRef::Ref{LinuxCanvas}
+mutable struct GPUCanvasContext <: AbstractWGPUCanvasContext
+    canvasRef::Ref{GLFWLinuxCanvas}
     surfaceSize::Any
     surfaceId::Any
     internal::Any
@@ -118,7 +118,7 @@ mutable struct GPUCanvasContext
     logicalSize::Any
 end
 
-function getContext(gpuCanvas::LinuxCanvas)
+function getContext(gpuCanvas::GLFWLinuxCanvas)
     if gpuCanvas.context == nothing
         context = GPUCanvasContext(
             Ref(gpuCanvas),
@@ -171,12 +171,12 @@ function determineSize(cntxt::GPUCanvasContext)
     psize = GLFW.GetFramebufferSize(cntxt.canvasRef[].windowRef[])
     cntxt.pixelRatio = pixelRatio
     cntxt.physicalSize = (psize.width, psize.height)
-    cntxt.logicalSize = (psize.width, psize.height) ./ pixelRatio
+    cntxt.logicalSize = ceil.((psize.width, psize.height) ./ pixelRatio) .|> Int
     # TODO skipping event handlers for now
 end
 
 
-function getPreferredFormat(canvas::LinuxCanvas)
+function getPreferredFormat(canvas::GLFWLinuxCanvas)
     return getEnum(WGPUTextureFormat, "BGRA8Unorm")
 end
 
@@ -222,7 +222,7 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
         return
     end
     canvasCntxt.surfaceSize = pSize
-    canvasCntxt.usage = WGPUTextureUsage_RenderAttachment
+    canvasCntxt.usage = getEnum(WGPUTextureUsage, ["RenderAttachment", "CopySrc"])
     presentMode = WGPUPresentMode_Fifo
     swapChain =
         cStruct(
@@ -244,7 +244,7 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
         ) |> Ref
 end
 
-function destroyWindow(canvas::LinuxCanvas)
+function destroyWindow(canvas::GLFWLinuxCanvas)
     GLFW.DestroyWindow(canvas.windowRef[])
 end
 

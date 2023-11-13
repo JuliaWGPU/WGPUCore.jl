@@ -1512,7 +1512,7 @@ function readTexture(gpuDevice::GPUDevice, cntxt)
         ] |> Dict
     )
     
-    sumbit(gpuDevice.queue, [finish(cmdEncoder)])
+    submit(gpuDevice.queue, [finish(cmdEncoder)])
 
     data = mapRead(outputBuffer)
 
