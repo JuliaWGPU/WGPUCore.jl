@@ -1,5 +1,16 @@
 using GLFW
 
+mutable struct MouseState
+    leftButton::Any
+    rightButton::Any
+    middleButton::Any
+    scroll::Any
+end
+
+initMouse(::Type{MouseState}) = begin
+    MouseState(false, false, false, false)
+end
+
 function setJoystickCallback(canvas::AbstractWGPUCanvas, f = nothing)
     if f == nothing
         callback = (joystick, event) -> println("$joystick $event")

@@ -11,16 +11,6 @@ function GetX11Display()
     return ptr
 end
 
-mutable struct MouseState
-    leftButton::Any
-    rightButton::Any
-    middleButton::Any
-    scroll::Any
-end
-
-defaultInit(::Type{MouseState}) = begin
-    MouseState(false, false, false, false)
-end
 
 mutable struct LinuxCanvas <: AbstractWGPUCanvas
     title::String
@@ -39,12 +29,6 @@ mutable struct LinuxCanvas <: AbstractWGPUCanvas
     context::Any
     drawFunc::Any
     mouseState::Any
-end
-
-function attachDrawFunction(canvas::AbstractWGPUCanvas, f)
-    if canvas.drawFunc == nothing
-        canvas.drawFunc = f
-    end
 end
 
 
@@ -154,24 +138,6 @@ function getContext(gpuCanvas::LinuxCanvas)
         gpuCanvas.context = context
     else
         return gpuCanvas.context
-    end
-end
-
-
-function config(a::T; args...) where {T}
-    fields = fieldnames(typeof(a))
-    for pair in args
-        if pair.first in fields
-            setproperty!(a, pair.first, pair.second)
-        else
-            @error "Cannot set field $pair. Check if its a valid field for $T"
-        end
-    end
-end
-
-function unconfig(a::T) where {T}
-    for field in fieldnames(T)
-        setproperty!(a, field, defaultInit(fieldtype(T, field)))
     end
 end
 

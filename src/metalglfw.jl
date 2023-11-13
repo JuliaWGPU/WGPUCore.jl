@@ -35,17 +35,6 @@ function setMetalLayer(nswindow, metalLayer)
     )
 end
 
-mutable struct MouseState
-    leftButton::Any
-    rightButton::Any
-    middleButton::Any
-    scroll::Any
-end
-
-initMouse(::Type{MouseState}) = begin
-    MouseState(false, false, false, false)
-end
-
 mutable struct GLFWMacCanvas <: GLFWCanvas
     title::String
     size::Tuple
@@ -63,12 +52,6 @@ mutable struct GLFWMacCanvas <: GLFWCanvas
     context::Any
     drawFunc::Any
     mouseState::Any
-end
-
-function attachDrawFunction(canvas::GLFWCanvas, f)
-    if canvas.drawFunc == nothing
-        canvas.drawFunc = f
-    end
 end
 
 

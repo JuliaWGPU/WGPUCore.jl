@@ -6,25 +6,12 @@ using WGPUCore
 
 using Pkg.Artifacts
 
-
 function GetWin32Window(window)
     ccall((:glfwGetWin32Window, libglfw), Ptr{Nothing}, (Ptr{GLFW.Window},), window.handle)
 end
 
 function GetModuleHandle(ptr)
     ccall((:GetModuleHandleA, "kernel32"), stdcall, Ptr{UInt32}, (UInt32,), ptr)
-end
-
-
-mutable struct MouseState
-    leftButton::Any
-    rightButton::Any
-    middleButton::Any
-    scroll::Any
-end
-
-initMouse(::Type{MouseState}) = begin
-    MouseState(false, false, false, false)
 end
 
 mutable struct GLFWWinCanvas <: AbstractWGPUCanvas
