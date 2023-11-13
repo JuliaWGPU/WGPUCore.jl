@@ -1,5 +1,3 @@
-abstract type AbstractCanvas end
-
 using GLFW_jll
 using GLFW
 # 
@@ -24,7 +22,7 @@ defaultInit(::Type{MouseState}) = begin
     MouseState(false, false, false, false)
 end
 
-mutable struct LinuxCanvas <: AbstractCanvas
+mutable struct LinuxCanvas <: AbstractWGPUCanvas
     title::String
     size::Tuple
     displayRef::Any
@@ -43,7 +41,7 @@ mutable struct LinuxCanvas <: AbstractCanvas
     mouseState::Any
 end
 
-function attachDrawFunction(canvas::AbstractCanvas, f)
+function attachDrawFunction(canvas::AbstractWGPUCanvas, f)
     if canvas.drawFunc == nothing
         canvas.drawFunc = f
     end
@@ -117,147 +115,6 @@ function defaultCanvas(::Type{LinuxCanvas}; windowSize = (500, 500))
     setDropCallback(canvas)
 
     return canvas
-end
-
-function setJoystickCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (joystick, event) -> println("$joystick $event")
-    else
-        callback = f
-    end
-    GLFW.SetJoystickCallback(callback)
-end
-
-function setMonitorCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (monitor, event) -> println("$monitor $event")
-    else
-        callback = f
-    end
-    GLFW.SetMonitorCallback(callback)
-end
-
-function setWindowCloseCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (event) -> println("Window closed")
-    else
-        callback = f
-    end
-    GLFW.SetWindowCloseCallback(canvas.windowRef[], callback)
-end
-
-function setWindowPosCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, x, y) -> println("window position : $x $y")
-    else
-        callback = f
-    end
-    GLFW.SetWindowPosCallback(canvas.windowRef[], callback)
-end
-
-function setWindowSizeCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, w, h) -> begin
-            println("window size : $w $h")
-            canvas.size = (w, h)
-            determineSize(canvas.context)
-        end
-    else
-        callback = f
-    end
-    GLFW.SetWindowSizeCallback(canvas.windowRef[], callback)
-end
-
-function setWindowFocusCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, focused) -> println("window focus : $focused")
-    else
-        callback = f
-    end
-    GLFW.SetWindowFocusCallback(canvas.windowRef[], callback)
-end
-
-function setWindowIconifyCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, iconified) -> println("window iconify : $iconified")
-    else
-        callback = f
-    end
-    GLFW.SetWindowIconifyCallback(canvas.windowRef[], callback)
-end
-
-function setWindowMaximizeCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, maximized) -> println("window maximized : $maximized")
-    else
-        callback = f
-    end
-    GLFW.SetWindowMaximizeCallback(canvas.windowRef[], callback)
-end
-
-function setKeyCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback =
-            (_, key, scancode, action, mods) -> begin
-                name = GLFW.GetKeyName(key, scancode)
-                if name == nothing
-                    println("scancode $scancode ", action)
-                else
-                    println("key $name ", action)
-                end
-            end
-    else
-        callback = f
-    end
-    GLFW.SetKeyCallback(canvas.windowRef[], callback)
-end
-
-
-function setCharModsCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, c, mods) -> println("char: $c, mods : $mods")
-    else
-        callback = f
-    end
-    GLFW.SetCharModsCallback(canvas.windowRef[], callback)
-end
-
-function setMouseButtonCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (win, button, action, mods) -> begin
-            println("$button : $action : $mods")
-        end
-    else
-        callback = f
-    end
-    GLFW.SetMouseButtonCallback(canvas.windowRef[], callback)
-end
-
-function setCursorPosCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, x, y) -> println("cursor $x : $y")
-    else
-        callback = f
-    end
-    GLFW.SetCursorPosCallback(canvas.windowRef[], callback)
-end
-
-function setScrollCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, xoff, yoff) -> println("scroll $xoff : $yoff")
-    else
-        callback = f
-    end
-    GLFW.SetScrollCallback(canvas.windowRef[], callback)
-end
-
-function setDropCallback(canvas::AbstractCanvas, f = nothing)
-    if f == nothing
-        callback = (_, paths) -> println("path $paths")
-    else
-        callback = f
-    end
-    GLFW.SetDropCallback(canvas.windowRef[], callback)
 end
 
 
@@ -425,4 +282,3 @@ function destroyWindow(canvas::LinuxCanvas)
     GLFW.DestroyWindow(canvas.windowRef[])
 end
 
-const WGPUCanvas = LinuxCanvas

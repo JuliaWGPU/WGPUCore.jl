@@ -18,7 +18,7 @@ println("Current Version : $(wgpuGetVersion())")
 SetLogLevel(WGPULogLevel_Debug)
 
 ## WGSL loading
-(shaderSource, _) = WGPUCore.load_wgsl("examples/shader.wgsl")
+(shaderSource, _) = WGPUCore.load_wgsl("$(pkgdir(WGPUCore))/examples/shader.wgsl")
 
 ##
 shader = wgpuDeviceCreateShaderModule(

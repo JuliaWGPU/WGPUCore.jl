@@ -1468,8 +1468,64 @@ function writeTexture(queue::GPUQueue; args...)
     )
 end
 
-function readTexture()
-    # TODO
+
+function readTexture(gpuDevice::GPUDevice, cntxt)
+    usage = ["CopyDst", "MapRead"]
+    cntxtSize = determineSize(cntxt)
+    bufferDims = BufferDimensions(cntxtSize...)
+    bufferSize = bufferDims.padded_bytes_per_row*bufferDims.height
+    outputBuffer = createBuffer(
+        "OUTPUT BUFFER",
+        gpuDevice,
+        bufferSize,
+        usage,
+        false,
+    )
+
+    nextTexture = getCurrentTexture(cntxt)
+    
+    cmdEncoder = createCommandEncoder(gpuDevice, "readTexture command")
+    
+    copyTextureToBuffer(
+        cmdEncoder,
+        [
+            :texture => nextTexture,
+            :mipLevel => 0,
+            :origin => [
+                :x => 0,
+                :y => 0,
+                :z => 0,
+            ] |> Dict,
+        ] |> Dict,
+        [
+            :buffer => outputBuffer,
+            :layout => [
+                :offset => 0,
+                :bytesPerRow => bufferDims.padded_bytes_per_row,
+                :rowsPerImage => WGPU_COPY_STRIDE_UNDEFINED,
+            ] |> Dict,
+        ] |> Dict,
+        [
+            :width => bufferDims.width,
+            :height => bufferDims.height,
+            :depthOrArrayLayers => 1,
+        ] |> Dict
+    )
+    
+    sumbit(gpuDevice.queue, [finish(cmdEncoder)])
+
+    data = mapRead(outputBuffer)
+
+    destroy(outputBuffer)
+    
+    return data
+end
+
+function saveTexture(gpuDevice, cntxt, name::String)
+    data = readTexture(gpuDevice, cntxt)
+    datareshaped = reshape(data, (4, (cntxt.size |> reverse)...) .|> Int)
+    img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, cntxt.size)
+    save(name, img |> adjoint)
 end
 
 function readBuffer(gpuDevice, buffer, bufferOffset, size)
@@ -1490,16 +1546,35 @@ function writeBuffer(queue::GPUQueue, buffer, data; dataOffset = 0, size = nothi
     wgpuQueueWriteBuffer(queue.internal[], buffer.internal[], 0, data, sizeof(data))
 end
 
-forceOffscreen = false
 
-if forceOffscreen == true
-    include("offscreen.jl")
-elseif Sys.isapple()
+include("canvas.jl")
+include("offscreen.jl")
+
+if Sys.isapple()
+    include("events.jl")
     include("metalglfw.jl")
 elseif Sys.islinux()
+    include("events.jl")
     include("linuxglfw.jl")
 elseif Sys.iswindows()
-    include("glfwWindows.jl") # TODO windows is not tested yet
+    include("events.jl")
+    include("glfwWindows.jl")
+end
+
+function getCanvas(s::Symbol)
+    if s==:OFFSCREEN
+        return defaultCanvas(OffscreenCanvas)
+    elseif s==:GLFW
+        if Sys.iswindows()
+            return defaultCanvas(GLFWWinCanvas)
+        elseif Sys.isapple()
+            return defaultCanvas(GLFWMacCanvas)
+        elseif Sys.islinux()
+            return defaultCanvas(GLFWLinuxCanvas)
+        end
+    else
+        @error "Couldn't create canvas"
+    end
 end
 
 function destroy(texView::GPUTextureView)

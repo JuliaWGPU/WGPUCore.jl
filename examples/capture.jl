@@ -69,7 +69,7 @@ texture = wgpuDeviceCreateTexture(
 
 encoder = wgpuDeviceCreateCommandEncoder(
     gpuDevice.internal[],
-    cStructPtr(WGPUCommandEncoderDescriptor),
+    cStruct(WGPUCommandEncoderDescriptor) |> ptr,
 )
 
 ## outputAttachment

@@ -48,7 +48,7 @@ shaderSource = Vector{UInt8}(
 	"""
 );
 
-canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
+canvas = WGPUCore.getCanvas(:GLFW)
 gpuDevice = WGPUCore.getDefaultDevice()
 canvas.device = gpuDevice
 shadercode = WGPUCore.loadWGSL(shaderSource);
@@ -266,7 +266,7 @@ try
 
         (tmpBuffer, _) =
             WGPUCore.createBufferWithData(gpuDevice, "ROTATION BUFFER", uniformData, "CopySrc")
-        currentTextureView = WGPUCore.getCurrentTexture(presentContext) |> Ref
+        currentTextureView = WGPUCore.getCurrentTexture(presentContext)
         cmdEncoder = WGPUCore.createCommandEncoder(gpuDevice, "CMD ENCODER")
         WGPUCore.copyBufferToBuffer(
             cmdEncoder,
@@ -281,7 +281,7 @@ try
             WGPUCore.GPUColorAttachments => [
                 :attachments => [
                     WGPUCore.GPUColorAttachment => [
-                        :view => currentTextureView[],
+                        :view => currentTextureView,
                         :resolveTarget => C_NULL,
                         :clearValue => (
                             abs(0.8f0 * sin(a2)),
@@ -306,7 +306,7 @@ try
         WGPUCore.setPipeline(renderPass, renderPipeline)
         WGPUCore.setIndexBuffer(renderPass, indexBuffer, "Uint32")
         WGPUCore.setVertexBuffer(renderPass, 0, vertexBuffer)
-        WGPUCore.setBindGroup(renderPass, 0, bindGroup, UInt32[], 0, 99)
+        WGPUCore.setBindGroup(renderPass, 0, pipelineLayout.bindGroup, UInt32[], 0, 99)
         WGPUCore.drawIndexed(
             renderPass,
             Int32(indexBuffer.size / sizeof(UInt32));
@@ -317,7 +317,7 @@ try
         )
         WGPUCore.endEncoder(renderPass)
         WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
-        WGPUCore.present(presentContext[])
+        WGPUCore.present(presentContext)
         GLFW.PollEvents()
         # dataDown = reinterpret(Float32, WGPUCore.readBuffer(gpuDevice, vertexBuffer, 0, sizeof(vertexData)))
         # @info sum(dataDown .== vertexData |> flatten)

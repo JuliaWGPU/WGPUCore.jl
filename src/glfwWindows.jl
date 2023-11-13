@@ -1,5 +1,3 @@
-abstract type GLFWCanvas end
-
 using GLFW_jll
 using GLFW
 using GLFW: libglfw
@@ -29,7 +27,7 @@ initMouse(::Type{MouseState}) = begin
     MouseState(false, false, false, false)
 end
 
-mutable struct GLFWWinCanvas <: GLFWCanvas
+mutable struct GLFWWinCanvas <: AbstractWGPUCanvas
     title::String
     size::Tuple
     windowRef::Any # This has to be platform specific may be
@@ -45,12 +43,6 @@ mutable struct GLFWWinCanvas <: GLFWCanvas
     mouseState::Any
 end
 
-
-function attachDrawFunction(canvas::GLFWCanvas, f)
-    if canvas.drawFunc == nothing
-        canvas.drawFunc = f
-    end
-end
 
 function defaultCanvas(::Type{GLFWWinCanvas}; size = (500, 500))
     windowRef = Ref{GLFW.Window}()
@@ -116,149 +108,7 @@ function defaultCanvas(::Type{GLFWWinCanvas}; size = (500, 500))
 end
 
 
-function setJoystickCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (joystick, event) -> println("$joystick $event")
-    else
-        callback = f
-    end
-    GLFW.SetJoystickCallback(callback)
-end
-
-function setMonitorCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (monitor, event) -> println("$monitor $event")
-    else
-        callback = f
-    end
-    GLFW.SetMonitorCallback(callback)
-end
-
-function setWindowCloseCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (event) -> println("Window closed")
-    else
-        callback = f
-    end
-    GLFW.SetWindowCloseCallback(canvas.windowRef[], callback)
-end
-
-function setWindowPosCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, x, y) -> println("window position : $x $y")
-    else
-        callback = f
-    end
-    GLFW.SetWindowPosCallback(canvas.windowRef[], callback)
-end
-
-function setWindowSizeCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, w, h) -> begin
-            println("window size : $w $h")
-            canvas.size = (w, h)
-            determineSize(canvas.context)
-        end
-    else
-        callback = f
-    end
-    GLFW.SetWindowSizeCallback(canvas.windowRef[], callback)
-end
-
-function setWindowFocusCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, focused) -> println("window focus : $focused")
-    else
-        callback = f
-    end
-    GLFW.SetWindowFocusCallback(canvas.windowRef[], callback)
-end
-
-function setWindowIconifyCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, iconified) -> println("window iconify : $iconified")
-    else
-        callback = f
-    end
-    GLFW.SetWindowIconifyCallback(canvas.windowRef[], callback)
-end
-
-function setWindowMaximizeCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, maximized) -> println("window maximized : $maximized")
-    else
-        callback = f
-    end
-    GLFW.SetWindowMaximizeCallback(canvas.windowRef[], callback)
-end
-
-function setKeyCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback =
-            (_, key, scancode, action, mods) -> begin
-                name = GLFW.GetKeyName(key, scancode)
-                if name == nothing
-                    println("scancode $scancode ", action)
-                else
-                    println("key $name ", action)
-                end
-            end
-    else
-        callback = f
-    end
-    GLFW.SetKeyCallback(canvas.windowRef[], callback)
-end
-
-
-function setCharModsCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, c, mods) -> println("char: $c, mods : $mods")
-    else
-        callback = f
-    end
-    GLFW.SetCharModsCallback(canvas.windowRef[], callback)
-end
-
-function setMouseButtonCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (win, button, action, mods) -> begin
-            println("$button : $action : $mods")
-        end
-    else
-        callback = f
-    end
-    GLFW.SetMouseButtonCallback(canvas.windowRef[], callback)
-end
-
-function setCursorPosCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, x, y) -> println("cursor $x : $y")
-    else
-        callback = f
-    end
-    GLFW.SetCursorPosCallback(canvas.windowRef[], callback)
-end
-
-function setScrollCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, xoff, yoff) -> println("scroll $xoff : $yoff")
-    else
-        callback = f
-    end
-    GLFW.SetScrollCallback(canvas.windowRef[], callback)
-end
-
-function setDropCallback(canvas::GLFWCanvas, f = nothing)
-    if f == nothing
-        callback = (_, paths) -> println("path $paths")
-    else
-        callback = f
-    end
-    GLFW.SetDropCallback(canvas.windowRef[], callback)
-end
-
-
-mutable struct GPUCanvasContext
+mutable struct GPUCanvasContext <: AbstractWGPUCanvasContext
     canvasRef::Ref{GLFWWinCanvas}
     surfaceSize::Any
     surfaceId::Any
@@ -284,7 +134,7 @@ function getContext(gpuCanvas::GLFWWinCanvas)
             nothing,                     # currentTexture::Any
             gpuCanvas.device,            # device::Any
             WGPUTextureFormat_R8Unorm,   # format::WGPUTextureFormat
-            WGPUTextureUsage(0),         # usage::WGPUTextureUsage
+            getEnum(WGPUTextureUsage, ["RenderAttachment", "CopySrc"]),         # usage::WGPUTextureUsage
             nothing,                     # compositingAlphaMode::Any
             nothing,                     # size::Any
             gpuCanvas.size,              # physicalSize::Any
@@ -294,24 +144,6 @@ function getContext(gpuCanvas::GLFWWinCanvas)
         gpuCanvas.context = context
     else
         return gpuCanvas.context
-    end
-end
-
-
-function config(a::T; args...) where {T}
-    fields = fieldnames(typeof(a))
-    for pair in args
-        if pair.first in fields
-            setproperty!(a, pair.first, pair.second)
-        else
-            @error "Cannot set field $pair. Check if its a valid field for $T"
-        end
-    end
-end
-
-function unconfig(a::T) where {T}
-    for field in fieldnames(T)
-        setproperty!(a, field, defaultInit(fieldtype(T, field)))
     end
 end
 
@@ -396,8 +228,8 @@ function createNativeSwapChainMaybe(canvasCntxt::GPUCanvasContext)
         return
     end
     canvasCntxt.surfaceSize = pSize
-    canvasCntxt.usage = WGPUTextureUsage_RenderAttachment
-    presentMode = WGPUPresentMode_Fifo
+    canvasCntxt.usage = getEnum(WGPUTextureUsage, ["RenderAttachment", "CopySrc"])
+    presentMode = WGPUPresentMode_Immediate # TODO hardcoded (for other options ref https://docs.rs/wgpu/latest/wgpu/enum.PresentMode.html)
     swapChain =
         cStruct(
             WGPUSwapChainDescriptor;
@@ -422,4 +254,3 @@ function destroyWindow(canvas::GLFWWinCanvas)
     GLFW.DestroyWindow(canvas.windowRef[])
 end
 
-const WGPUCanvas = GLFWWinCanvas

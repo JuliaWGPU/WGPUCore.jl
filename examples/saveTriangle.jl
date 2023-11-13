@@ -37,7 +37,7 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPUCore.getCanvas(:OFFSCREEN);
+canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
 gpuDevice = WGPUCore.getDefaultDevice();
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
@@ -95,13 +95,6 @@ renderPipeline = WGPUCore.createRenderPipeline(
     label = "RENDER PIPE LABEL ",
 )
 
-function drawFunction()
-    WGPUCore.draw(renderPass, 3, 1, 0, 0)
-    WGPUCore.end(renderPass)
-end
-
-WGPUCore.attachDrawFunction(canvas, drawFunction)
-
 try
     bufferDims = WGPUCore.BufferDimensions(ctxtSize...)
     bufferSize = bufferDims.padded_bytes_per_row * bufferDims.height
@@ -109,7 +102,7 @@ try
         "OUTPUT BUFFER",
         gpuDevice,
         bufferSize,
-        [ "CopyDst", "CopySrc"],
+        [ "CopyDst", "MapRead"],
         false,
     )
     nextTexture = WGPUCore.getCurrentTexture(presentContext)
@@ -158,7 +151,8 @@ try
     )
     WGPUCore.submit(gpuDevice.queue, [WGPUCore.finish(cmdEncoder)])
     WGPUCore.present(presentContext)
-    data = WGPUCore.readBuffer(gpuDevice, outputBuffer, 0, bufferSize |> Int)
+    # data = WGPUCore.readBuffer(gpuDevice, outputBuffer, 0, bufferSize |> Int)
+    data = WGPUCore.mapRead(outputBuffer)
     datareshaped = reshape(data, (4, ((512, 500) |> reverse)...) .|> Int) #hardcoded
     img = reinterpret(RGBA{N0f8}, datareshaped) |> (x) -> reshape(x, (512, 500)) #hardcoded
     save("triangle.png", img |> adjoint)

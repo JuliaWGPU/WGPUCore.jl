@@ -51,7 +51,7 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas)
+canvas = WGPUCore.getCanvas(:GLFW)
 gpuDevice = WGPUCore.getDefaultDevice()
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
@@ -106,7 +106,7 @@ indexData =
 
 
 textureData = begin
-    img = load("/Users/arhik/Pictures/OIP.jpeg")
+    img = load(joinpath("$(pkgdir(WGPUCore))", "examples", "assets", "wgpu.png"))
     img = imresize(img, (256, 256))
     img = RGBA.(img)
     imgview = channelview(img) |> collect
