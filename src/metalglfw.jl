@@ -35,7 +35,7 @@ function setMetalLayer(nswindow, metalLayer)
     )
 end
 
-mutable struct GLFWMacCanvas <: GLFWCanvas
+mutable struct GLFWMacCanvas <: AbstractWGPUCanvas
     title::String
     size::Tuple
     windowRef::Any # This has to be platform specific may be
@@ -122,7 +122,7 @@ function defaultCanvas(::Type{GLFWMacCanvas}; size = (500, 500))
     return canvas
 end
 
-mutable struct GPUCanvasContext
+mutable struct GPUCanvasContext <: AbstractWGPUCanvasContext
     canvasRef::Ref{GLFWMacCanvas}
     surfaceSize::Any
     surfaceId::Any

@@ -5,7 +5,6 @@ using WGPUNative
 using GLFW
 using StaticArrays
 using Images
-using ImageView
 
 WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
