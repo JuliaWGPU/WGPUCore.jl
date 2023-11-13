@@ -37,7 +37,7 @@ shaderSource = Vector{UInt8}(
     """,
 );
 
-canvas = WGPUCore.defaultCanvas(WGPUCore.WGPUCanvas);
+canvas = WGPUCore.getCanvas(:GLFW);
 gpuDevice = WGPUCore.getDefaultDevice();
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =

@@ -50,7 +50,7 @@ swapChainFormat = WGPUCore.getPreferredFormat(canvas)
 presentContext = WGPUCore.getContext(canvas)
 ctxtSize = WGPUCore.determineSize(presentContext) .|> Int
 
-WGPUCore.config(presentContext, device = gpuDevice, format = swapChainFormat)
+WGPUCore.config(presentContext; device = gpuDevice, format = swapChainFormat)
 
 renderpipelineOptions = [
     WGPUCore.GPUVertexState =>
