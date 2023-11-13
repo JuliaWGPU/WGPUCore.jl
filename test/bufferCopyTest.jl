@@ -14,7 +14,7 @@ for i = 1:n
     data[i] = i
 end
 
-canvas = WGPUCore.getCanvas(:OFFSCREEN);
+canvas = WGPUCore.getCanvas();
 
 gpuDevice = WGPUCore.getDefaultDevice()
 

@@ -37,7 +37,7 @@ vertexData =
         dims = 2,
     ) .|> Float32
 
-canvas = WGPUCore.getCanvas(:OFFSCREEN)
+canvas = WGPUCore.getCanvas()
 gpuDevice = WGPUCore.getDefaultDevice()
 
 (vertexBuffer, tmpData) = WGPUCore.createBufferWithData(

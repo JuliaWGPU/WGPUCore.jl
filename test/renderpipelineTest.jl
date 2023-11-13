@@ -2,7 +2,6 @@
 using WGPUCore
 using Test
 using WGPUNative
-using GLFW
 
 WGPUCore.setDebugMode(false)
 WGPUCore.SetLogLevel(WGPULogLevel_Debug)
@@ -37,7 +36,7 @@ shaderSource =
         }
         """,
     )
-canvas = WGPUCore.getCanvas(:OFFSCREEN);
+canvas = WGPUCore.getCanvas();
 gpuDevice = WGPUCore.getDefaultDevice();
 shaderInfo = WGPUCore.loadWGSL(shaderSource);
 cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderInfo.shaderModuleDesc, nothing, nothing);

@@ -1546,36 +1546,7 @@ function writeBuffer(queue::GPUQueue, buffer, data; dataOffset = 0, size = nothi
     wgpuQueueWriteBuffer(queue.internal[], buffer.internal[], 0, data, sizeof(data))
 end
 
-
 include("canvas.jl")
-include("offscreen.jl")
-
-if Sys.isapple()
-    include("events.jl")
-    include("metalglfw.jl")
-elseif Sys.islinux()
-    include("events.jl")
-    include("linuxglfw.jl")
-elseif Sys.iswindows()
-    include("events.jl")
-    include("glfwWindows.jl")
-end
-
-function getCanvas(s::Symbol)
-    if s==:OFFSCREEN
-        return defaultCanvas(OffscreenCanvas)
-    elseif s==:GLFW
-        if Sys.iswindows()
-            return defaultCanvas(GLFWWinCanvas)
-        elseif Sys.isapple()
-            return defaultCanvas(GLFWMacCanvas)
-        elseif Sys.islinux()
-            return defaultCanvas(GLFWLinuxCanvas)
-        end
-    else
-        @error "Couldn't create canvas"
-    end
-end
 
 function destroy(texView::GPUTextureView)
     if texView.internal[] != C_NULL
