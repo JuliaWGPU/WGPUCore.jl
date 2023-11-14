@@ -4,7 +4,7 @@ using WGPUNative
 adapter = WGPUCore.requestAdapter()
 gpuDevice = WGPUCore.requestDevice(adapter)
 
-width, height = (500, 500)
+width, height = (200, 200)
 ## Buffer dimensions
 
 struct BufferDimensions
