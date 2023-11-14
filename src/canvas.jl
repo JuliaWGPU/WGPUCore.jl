@@ -54,14 +54,6 @@ function getCanvas()
     defaultCanvas(FallbackCanvas)
 end
 
-function getCanvas(x::Symbol)
-    try
-        getCanvas(eval(x))
-    catch e
-        @error e
-    end
-end
-
 function getCanvas(::Val{:FallbackCanvas})
     defaultCanvas(FallbackCanvas)
 end
