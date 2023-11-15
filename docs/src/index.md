@@ -4,7 +4,7 @@ CurrentModule = WGPUCore
 
 # WGPUCore
 
-Documentation for [WGPUCore](https://github.com/arhik/WGPUCore.jl).
+Documentation for [WGPUCore](https://github.com/JuliaWGPU/WGPUCore.jl).
 
 ```@index
 ```

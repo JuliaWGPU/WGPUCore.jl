@@ -6,11 +6,11 @@ DocMeta.setdocmeta!(WGPUCore, :DocTestSetup, :(using WGPUCore); recursive=true)
 makedocs(;
     modules=[WGPUCore],
     authors="arhik <arhik23@gmail.com> and contributors",
-    repo="https://github.com/arhik/WGPUCore.jl/blob/{commit}{path}#{line}",
+    repo="https://github.com/JuliaWGPU/WGPUCore.jl/blob/{commit}{path}#{line}",
     sitename="WGPUCore.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://arhik.github.io/WGPUCore.jl",
+        canonical="https://JuliaWGPU.github.io/WGPUCore.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -20,6 +20,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/arhik/WGPUCore.jl",
+    repo="github.com/JuliaWGPU/WGPUCore.jl",
     devbranch="main",
 )
