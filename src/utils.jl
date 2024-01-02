@@ -75,7 +75,7 @@ function getEnum(::Type{T}, partials::Vector{String}) where {T<:Cenum}
 		    t = WGPUCore.defaultInit(T)
 		    for partial in partials
 		        e = getEnum(T, partial)
-		        if e != nothing
+		        if e !== nothing
 		            t |= e
 		        else
 		            @error "$partial is not a member of $T"
