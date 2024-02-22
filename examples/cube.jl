@@ -4,6 +4,7 @@ using Rotations
 using WGPUNative
 using GLFW
 using StaticArrays
+using WGPUCanvas
 
 WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
