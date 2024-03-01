@@ -122,8 +122,9 @@ function requestDevice(
     )
 end
 
-function getDefaultDevice(; backendType = getDefaultBackendType())
-    adapter = WGPUCore.requestAdapter()
+function getDefaultDevice(canvas; backendType = getDefaultBackendType())
+    adapter = WGPUCore.requestAdapter(;canvas=canvas)
     device = requestDevice(adapter)
+    canvas.device = device
     return device
 end

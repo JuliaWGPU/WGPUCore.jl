@@ -40,7 +40,7 @@ function requestAdapter(;
     backendType = getDefaultBackendType()
 
     adapterOptions = cStruct(WGPURequestAdapterOptions)
-    adapterOptions.compatibleSurface = C_NULL
+    adapterOptions.compatibleSurface = canvas.surfaceRef[]
     adapterOptions.powerPreference = powerPreference
     adapterOptions.forceFallbackAdapter = false
     

@@ -1,7 +1,9 @@
 ## Load WGPU
 using WGPUCore
 using WGPUNative
-adapter = WGPUCore.requestAdapter()
+using WGPUCanvas
+canvas = WGPUCore.getCanvas(:GLFW)
+adapter = WGPUCore.requestAdapter(canvas=canvas)
 gpuDevice = WGPUCore.requestDevice(adapter)
 
 width, height = (200, 200)
