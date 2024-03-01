@@ -4,6 +4,7 @@ using Rotations
 using WGPUNative
 using GLFW
 using StaticArrays
+using WGPUCanvas
 
 WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
@@ -49,7 +50,7 @@ shaderSource = Vector{UInt8}(
 );
 
 canvas = WGPUCore.getCanvas(:GLFW)
-gpuDevice = WGPUCore.getDefaultDevice()
+gpuDevice = WGPUCore.getDefaultDevice(canvas)
 canvas.device = gpuDevice
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =

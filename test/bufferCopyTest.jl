@@ -16,7 +16,7 @@ end
 
 canvas = WGPUCore.getCanvas();
 
-gpuDevice = WGPUCore.getDefaultDevice()
+gpuDevice = WGPUCore.getDefaultDevice(canvas)
 
 # GC.gc()
 

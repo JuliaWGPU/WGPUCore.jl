@@ -3,6 +3,7 @@ using WGPUCore
 using GLFW
 
 using WGPUNative
+using WGPUCanvas
 using Images
 using Debugger 
 
@@ -38,7 +39,7 @@ shaderSource = Vector{UInt8}(
 );
 
 canvas = WGPUCore.getCanvas(:GLFW);
-gpuDevice = WGPUCore.getDefaultDevice();
+gpuDevice = WGPUCore.getDefaultDevice(canvas);
 shadercode = WGPUCore.loadWGSL(shaderSource);
 cshader =
     Ref(WGPUCore.createShaderModule(gpuDevice, "shadercode", shadercode.shaderModuleDesc, nothing, nothing));

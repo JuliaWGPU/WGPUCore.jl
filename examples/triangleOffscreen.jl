@@ -5,6 +5,7 @@ using GLFW
 using WGPUNative
 using Images
 using Debugger 
+using WGPUCanvas
 
 WGPUCore.SetLogLevel(WGPULogLevel_Debug)
 
