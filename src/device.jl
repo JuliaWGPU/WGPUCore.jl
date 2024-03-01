@@ -125,6 +125,8 @@ end
 function getDefaultDevice(canvas; backendType = getDefaultBackendType())
     adapter = WGPUCore.requestAdapter(;canvas=canvas)
     device = requestDevice(adapter)
-    canvas.device = device
+    if canvas != nothing
+        canvas.device = device
+    end
     return device
 end
