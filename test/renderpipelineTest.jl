@@ -37,7 +37,7 @@ shaderSource =
         """,
     )
 canvas = WGPUCore.getCanvas();
-gpuDevice = WGPUCore.getDefaultDevice();
+gpuDevice = WGPUCore.getDefaultDevice(canvas);
 shaderInfo = WGPUCore.loadWGSL(shaderSource);
 cshader = WGPUCore.createShaderModule(gpuDevice, "shadercode", shaderInfo.shaderModuleDesc, nothing, nothing);
 cshaderRef = cshader |> Ref
