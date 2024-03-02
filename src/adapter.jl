@@ -40,7 +40,7 @@ function requestAdapter(;
     backendType = getDefaultBackendType()
 
     adapterOptions = cStruct(WGPURequestAdapterOptions)
-	if (typeof(canvas) == FallbackCanvas) || (typeof(canvas) == nothing)
+	if (typeof(canvas) == FallbackCanvas) || (canvas == nothing)
     	adapterOptions.compatibleSurface = C_NULL
     else
     	adapterOptions.compatibleSurface = canvas.surfaceRef[]
