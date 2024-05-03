@@ -80,7 +80,7 @@ function requestDevice(
             WGPUDeviceDescriptor;
             label = toCString(label),
             nextInChain = convert(Ptr{WGPUChainedStruct}, deviceExtras |> ptr),
-            requiredFeaturesCount = 0,
+            requiredFeatureCount = 0,
             requiredLimits = (wgpuRequiredLimits |> ptr),
             defaultQueue = wgpuQueueDescriptor |> concrete,
         )
