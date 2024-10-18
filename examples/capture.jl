@@ -108,6 +108,7 @@ renderPass = wgpuCommandEncoderBeginRenderPass(
 
 ## end renderpass 
 wgpuRenderPassEncoderEnd(renderPass)
+wgpuRenderPassEncoderRelease(renderPass)
 
 ## Copy texture to buffer
 

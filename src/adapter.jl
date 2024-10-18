@@ -40,7 +40,7 @@ function requestAdapter(;
     backendType = getDefaultBackendType()
 
     adapterOptions = cStruct(WGPURequestAdapterOptions)
-	if (typeof(canvas) == FallbackCanvas) || (canvas == nothing)
+	if (typeof(canvas) == FallbackCanvas) || (canvas === nothing)
     	adapterOptions.compatibleSurface = C_NULL
     else
     	adapterOptions.compatibleSurface = canvas.surfaceRef[]
@@ -66,9 +66,9 @@ function requestAdapter(;
 
     @assert adapter[] != C_NULL
 
-    properties = cStruct(WGPUAdapterProperties)
+    infos = cStruct(WGPUAdapterInfo)
 
-    wgpuAdapterGetProperties(adapter[], properties |> ptr)
+    wgpuAdapterGetInfo(adapter[], infos |> ptr)
 
     supportedLimits = cStruct(WGPUSupportedLimits)
     cLimits = supportedLimits.limits
@@ -82,7 +82,7 @@ function requestAdapter(;
         adapter,
         cLimits,
         supportedLimits,
-        properties,
+        infos,
         adapterOptions,
         backendType
     )

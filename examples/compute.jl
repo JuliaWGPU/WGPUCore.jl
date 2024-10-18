@@ -167,6 +167,7 @@ wgpuComputePassEncoderSetPipeline(computePass, computePipeline)
 wgpuComputePassEncoderSetBindGroup(computePass, 0, bindGroup, 0, C_NULL)
 wgpuComputePassEncoderDispatchWorkgroups(computePass, length(numbers), 1, 1)
 wgpuComputePassEncoderEnd(computePass)
+wgpuComputePassEncoderRelease(computePass)
 
 ## buffer copy buffer
 wgpuCommandEncoderCopyBufferToBuffer(encoder, storageBuffer, 0, stagingBuffer, 0, sizeof(numbers))

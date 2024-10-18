@@ -1290,6 +1290,7 @@ end
 
 function endComputePass(computePass::GPUComputePassEncoder)
     wgpuComputePassEncoderEnd(computePass.internal[])
+    wgpuComputePassEncoderRelease(computePass.internal[])
 end
 
 function setViewport(
@@ -1404,6 +1405,7 @@ end
 
 function endEncoder(renderPass::GPURenderPassEncoder)
     wgpuRenderPassEncoderEnd(renderPass.internal[])
+    wgpuRenderPassEncoderRelease(renderPass.internal[])
 end
 
 function submit(queue::GPUQueue, commandBuffers)
