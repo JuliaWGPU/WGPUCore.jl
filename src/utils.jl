@@ -3,7 +3,7 @@ using WGPUNative
 using CEnum
 using CEnum: Cenum
 
-export cStruct, CStruct, cStructPtr, ptr, concrete
+export cStruct, CStruct, cStructPtr, ptr, concrete, toWGPUString
 
 ## default inits for non primitive types
 weakRefs = WeakKeyDict() # |> lock
@@ -87,12 +87,13 @@ function getEnum(::Type{T}, partials::Vector{String}) where {T<:Cenum}
 end
 
 
-function toCString(s::String)
-	sNullTerminated = s*"\0"
+function toWGPUString(s::String)
+	sNullTerminated = s
 	sPtr = pointer(sNullTerminated)
 	dPtr = Libc.malloc(sizeof(sNullTerminated))
 	dUInt8Ptr = convert(Ptr{UInt8}, dPtr)
 	unsafe_copyto!(dUInt8Ptr, sPtr, sizeof(sNullTerminated))
+	return WGPUStringView(sPtr, length(sNullTerminated))
 end
 
 

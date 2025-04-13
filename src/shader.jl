@@ -2,17 +2,17 @@ export loadWGSL
 
 function load_wgsl(filename)
     b = read(filename)
-    wgslDescriptor = cStruct(WGPUShaderModuleWGSLDescriptor)
+    wgslDescriptor = cStruct(WGPUShaderSourceWGSL)
     wgslDescriptor.chain = cStruct(
             WGPUChainedStruct;
-            sType=WGPUSType_ShaderModuleWGSLDescriptor
+            sType=WGPUSType_ShaderSourceWGSL
         ) |> concrete 
-    wgslDescriptor.code = pointer(b)
+    wgslDescriptor.code = WGPUStringView(pointer(b), length(b))
     
     a = cStruct(
         WGPUShaderModuleDescriptor;
         nextInChain = wgslDescriptor |> ptr,
-        label = toCString(filename)
+        label = WGPUStringView(filename |> pointer, filename |> length)
     )
     return (a, wgslDescriptor)
 end
@@ -36,17 +36,17 @@ function loadWGSL(buffer::Vector{UInt8}; name = " UnnamedShader ")
    	chain = cStruct(
    		WGPUChainedStruct;
    		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+   		sType = WGPUSType_ShaderSourceWGSL
 	) 
     wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
+    	WGPUShaderSourceWGSL;
 		chain = chain |> concrete,
-    	code = pointer(buffer)
+    	code = WGPUStringView(pointer(buffer), length(buffer))
     )
     a = cStruct(
         WGPUShaderModuleDescriptor;
         nextInChain = wgslDescriptor |> ptr ,
-        label = toCString(name),
+        label = WGPUStringView(name |> pointer, name |> length),
     )
     return WGSLSrcInfo(a, buffer, chain, wgslDescriptor, name)
 end
@@ -56,17 +56,17 @@ function loadWGSL(buffer::IOBuffer; name = " UnknownShader ")
    	chain = cStruct(
    		WGPUChainedStruct;
    		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+   		sType = WGPUSType_ShaderSourceWGSL
 	) 
     wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
+    	WGPUShaderSourceWGSL;
 		chain = chain |> concrete,
-    	code = pointer(b)
+    	code = WGPUStringView(pointer(b), length(b))
     )
     a = cStruct(
         WGPUShaderModuleDescriptor;
         nextInChain = wgslDescriptor |> ptr,
-        label = toCString(name),
+        label = WGPUStringView(name |> pointer, name |> length),
     )
     return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
 end
@@ -77,17 +77,17 @@ function loadWGSL(fpath::String; name = " UnknownShader ")
    	chain = cStruct(
    		WGPUChainedStruct;
    		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+   		sType = WGPUSType_ShaderSourceWGSL
 	) 
     wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
+    	WGPUShaderSourceWGSL;
 		chain = chain |> concrete,
-    	code = pointer(b)
+    	code = WGPUStringView(pointer(b), length(b))
     )
     a = cStruct(
         WGPUShaderModuleDescriptor;
         nextInChain = wgslDescriptor |> ptr,
-        label = toCString(name),
+        label = WGPUStringView(pointer(name), lengt(name)),
     )
     return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
 end
@@ -97,17 +97,19 @@ function loadWGSL(file::IOStream; name = " UnknownShader ")
    	chain = cStruct(
    		WGPUChainedStruct;
    		next = C_NULL,
-   		sType = WGPUSType_ShaderModuleWGSLDescriptor
+   		sType = WGPUSType_ShaderSourceWGSL
 	) 
     wgslDescriptor = cStruct(
-    	WGPUShaderModuleWGSLDescriptor;
+    	WGPUShaderSourceWGSL;
 		chain = chain |> concrete,
-    	code = pointer(b)
+    	code = WGPUStringView(pointer(b), length(b))
     )
+    name == "UnknownShader" ? file.name : name
+
     a = cStruct(
         WGPUShaderModuleDescriptor;
         nextInChain = wgslDescriptor |> ptr,
-        label = toCString(name == "UnknownShader" ? file.name : name),
+        label = WGPUStringView(pointer(name), length(name)),
     )
     return WGSLSrcInfo(a, b, chain, wgslDescriptor, name)
 end

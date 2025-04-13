@@ -6,20 +6,18 @@ function getDeviceCallback(device::Ref{WGPUDevice})
     function request_device_callback(
         status::WGPURequestDeviceStatus,
         returnDevice::WGPUDevice,
-        message::Ptr{Cchar},
+        message::WGPUStringView,
         userData::Ptr{Cvoid},
     )
         if status == WGPURequestDeviceStatus_Success
             device[] = returnDevice
         elseif message != C_NULL
-            @warn unsafe_string(message)
+            @warn unsafe_string(message.data, message.length)
         end
         return nothing
     end
     return request_device_callback
 end
-
-
 
 mutable struct GPUDevice
     label::Any
@@ -35,12 +33,6 @@ mutable struct GPUDevice
     supportedLimits::Any
 end
 
-# wgpuAdapterRequestDevice(
-#     adapter[],
-#     C_NULL,
-#     requestDeviceCallback,
-#     device[]
-# )
 
 function requestDevice(
         gpuAdapter::GPUAdapter;
@@ -62,23 +54,22 @@ function requestDevice(
     deviceExtras = cStruct(
         WGPUDeviceExtras;
         chain = chainObj |> concrete,
-        tracePath = toCString(tracepath),
+        tracePath = toWGPUString(tracepath),
     )
 
-    wgpuLimits = cStruct(WGPULimits; maxBindGroups = 2) # TODO set limits
     wgpuRequiredLimits =
-        cStruct(WGPURequiredLimits; nextInChain = C_NULL, limits = wgpuLimits |> concrete)
+        cStruct(WGPULimits; nextInChain = C_NULL)
 
     wgpuQueueDescriptor = cStruct(
         WGPUQueueDescriptor;
         nextInChain = C_NULL,
-        label = toCString("DEFAULT QUEUE"),
+        label = toWGPUString("DEFAULT QUEUE"),
     ) 
 
     wgpuDeviceDescriptor =
         cStruct(
             WGPUDeviceDescriptor;
-            label = toCString(label),
+            label = toWGPUString(label),
             nextInChain = convert(Ptr{WGPUChainedStruct}, deviceExtras |> ptr),
             requiredFeatureCount = 0,
             requiredLimits = (wgpuRequiredLimits |> ptr),
@@ -88,19 +79,25 @@ function requestDevice(
     requestDeviceCallback = @cfunction(
         getDeviceCallback(device),
         Cvoid,
-        (WGPURequestDeviceStatus, WGPUDevice, Ptr{Cchar}, Ptr{Cvoid})
+        (WGPURequestDeviceStatus, WGPUDevice, WGPUStringView, Ptr{Cvoid})
     )
+
+    deviceCBInfo = WGPURequestDeviceCallbackInfo |> CStruct 
+    deviceCBInfo.nextInChain = C_NULL
+    deviceCBInfo.callback = requestDeviceCallback
+    deviceCBInfo.userdata1 = device[]
+
     # TODO dump all the info to a string or add it to the GPUAdapter structure
     # if device[] == C_NULL
         wgpuAdapterRequestDevice(
             gpuAdapter.internal[],
             C_NULL,
-            requestDeviceCallback,
-            device[],
+            deviceCBInfo |> concrete,
         )
     # end
 
-    supportedLimits = cStruct(WGPUSupportedLimits;)
+    supportedLimits = cStruct(WGPULimits;)
+
 
     wgpuDeviceGetLimits(device[], supportedLimits |> ptr)
     features = []
@@ -116,7 +113,7 @@ function requestDevice(
         wgpuQueueDescriptor,
         wgpuDeviceDescriptor,
         wgpuRequiredLimits,
-        wgpuLimits,
+        nothing,
         supportedLimits,
         backendType,
     )
