@@ -29,13 +29,14 @@ bufferDimensions = BufferDimensions(width, height)
 
 bufferSize = bufferDimensions.padded_bytes_per_row * bufferDimensions.height
 
+outputBufferLabel = "OutputBuffer"
 outputBuffer = wgpuDeviceCreateBuffer(
     gpuDevice.internal[],
 	cStruct(
 	    WGPUBufferDescriptor;
 	    nextInChain = C_NULL,
-	    label = WGPUCore.toCString("Output Buffer"),
-	    usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+	    label = WGPUStringView(pointer(outputBufferLabel), length(outputBufferLabel)),
+	    usage = WGPUBufferUsage(WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst),
 	    size = bufferSize,
 	    mappedAtCreation = false,
     ) |> ptr
@@ -57,13 +58,13 @@ texture = wgpuDeviceCreateTexture(
 	cStruct(
 	    WGPUTextureDescriptor;
 	    nextInChain = C_NULL,
-	    label = C_NULL,
+	    label = WGPUStringView(C_NULL, 0),
 	    size = textureExtent |> ptr |> unsafe_load,
 	    mipLevelCount = 1,
 	    sampleCount = 1,
 	    dimension = WGPUTextureDimension_2D,
 	    format = WGPUTextureFormat_RGBA8UnormSrgb,
-	    usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
+	    usage = WGPUTextureUsage(WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc),
     ) |> ptr
 )
 
@@ -115,20 +116,20 @@ wgpuRenderPassEncoderRelease(renderPass)
 wgpuCommandEncoderCopyTextureToBuffer(
     encoder,
     cStruct(
-        WGPUImageCopyTexture;
+        WGPUTexelCopyTextureInfo;
         texture = texture,
         mipLevel = 0,
         origin = WGPUOrigin3D(0, 0, 0),
     ) |> ptr,
     cStruct(
-        WGPUImageCopyBuffer;
+        WGPUTexelCopyBufferInfo;
         buffer = outputBuffer,
         layout = cStruct(
-            WGPUTextureDataLayout;
+            WGPUTexelCopyBufferLayout;
             offset = 0,
             bytesPerRow = bufferDimensions.padded_bytes_per_row,
             rowsPerImage = WGPU_COPY_STRIDE_UNDEFINED,
-        ) |> ptr |> unsafe_load,
+        ) |> concrete,
     ) |> ptr,
     textureExtent |> ptr,
 )
@@ -146,16 +147,19 @@ cmdBuffer = wgpuCommandEncoderFinish(
 wgpuQueueSubmit(queue, 1, Ref(cmdBuffer))
 
 ## MapAsync
-asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
+asyncstatus = Ref(WGPUMapAsyncStatus(3))
 
-function readBufferMap(status::WGPUBufferMapAsyncStatus, userData)
+function readBufferMap(status::WGPUMapAsyncStatus, userData)
     asyncstatus[] = status
     return nothing
 end
 
-readbuffermap = @cfunction(readBufferMap, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
+readbuffermap = @cfunction(readBufferMap, Cvoid, (WGPUMapAsyncStatus, Ptr{Cvoid}))
+bufferMapCallbackInfo = CStruct(WGPUBufferMapCallbackInfo)
+bufferMapCallbackInfo.callback = readbuffermap
 
-wgpuBufferMapAsync(outputBuffer, WGPUMapMode_Read, 0, bufferSize, readbuffermap, C_NULL)
+
+wgpuBufferMapAsync(outputBuffer, WGPUMapMode_Read, 0, bufferSize, bufferMapCallbackInfo |> concrete)
 
 print(asyncstatus[])
 

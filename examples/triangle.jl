@@ -6,7 +6,7 @@ using Images
 using Debugger
 using WGPUCanvas
 
-WGPUCore.SetLogLevel(WGPULogLevel_Debug)
+WGPUCore.SetLogLevel(WGPULogLevel_Trace)
 
 shaderSource = Vector{UInt8}(
     """
