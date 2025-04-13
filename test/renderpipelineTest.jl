@@ -114,7 +114,7 @@ function createRenderPipeline(
     pipelineDesc =
         WGPUCore.partialInit(
             WGPUCore.WGPURenderPipelineDescriptor;
-            label = toCString(label),
+            label = toWGPUString(label),
             layout = pipelinelayout.internal[],
             vertex = vertexState[],
             primitive = primitiveState[],
@@ -164,7 +164,7 @@ vertexAttrib2 = WGPUCore.createEntry(
 Test.@testset "RenderPipeline" begin
     renderFragment = renderPipeline[WGPUCore.GPUFragmentState]
     fs = unsafe_load(renderFragment.internal[] |> ptr)
-    Test.@test unsafe_string(fs.entryPoint) == "fs_main"
+    Test.@test unsafe_string(fs.entryPoint.data, fs.entryPoint.length) == "fs_main"
 
     fsColorTarget = unsafe_load(fs.targets)
     Test.@test fsColorTarget.format == WGPUCore.getEnum(WGPUCore.WGPUTextureFormat, "RGBA8Unorm")

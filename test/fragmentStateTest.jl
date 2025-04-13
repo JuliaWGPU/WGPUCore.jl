@@ -64,5 +64,5 @@ fstate = WGPUCore.createEntry(fStateOptions.first; fStateOptions.second...)
 fs = unsafe_load(fstate.internal[] |> ptr)
 
 Test.@testset "FragmentState" begin
-    Test.@test unsafe_string(fs.entryPoint) == "fs_main"
+    Test.@test unsafe_string(fs.entryPoint.data, fs.entryPoint.length) == "fs_main"
 end
