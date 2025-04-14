@@ -54,7 +54,7 @@ attr2 = unsafe_load(buf.attributes, 2)
 
 Test.@testset "BufferLayoutTest" begin
     Test.@test buf.attributeCount == 2
-    Test.@test (vs.entryPoint |> unsafe_string) == "vs_main"
+    Test.@test (unsafe_string(vs.entryPoint.data, vs.entryPoint.length)) == "vs_main"
     Test.@test vs.bufferCount == 1
     Test.@test vs.buffers != C_NULL
     Test.@test attr1 == vertexAttrib1.internal |> concrete

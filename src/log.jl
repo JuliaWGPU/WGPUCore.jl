@@ -4,7 +4,7 @@ export SetLogLevel, logLevel
 
 global logLevel::WGPULogLevel
 
-function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
+function logCallBack(logLevel::WGPULogLevel, msg::WGPUStringView)
 		if logLevel == WGPULogLevel_Error
 				level_str = "ERROR"
 		elseif logLevel == WGPULogLevel_Warn
@@ -18,12 +18,12 @@ function logCallBack(logLevel::WGPULogLevel, msg::Ptr{Cchar})
 		else
 				level_str = "UNKNOWN LOG LEVEL"
 		end
-        println("$(level_str) $(unsafe_string(msg))")
+        println("$(level_str) $(unsafe_string(msg.data, msg.length))")
 end
 
 function SetLogLevel(loglevel::WGPULogLevel)
 	# Commenting them for now TODO verify the link to MallocInfo
-    logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, Ptr{Cchar}))
+    logcallback = @cfunction(logCallBack, Cvoid, (WGPULogLevel, WGPUStringView))
     wgpuSetLogCallback(logcallback, C_NULL)
     @info "Setting Log level : $loglevel"
     global logLevel = loglevel

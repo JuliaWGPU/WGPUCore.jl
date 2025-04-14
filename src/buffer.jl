@@ -8,9 +8,9 @@ mutable struct GPUBuffer <: Droppable
     desc::Any
 end
 
-asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
+asyncstatus = Ref(WGPUMapAsyncStatus(3))
 
-function bufferCallback(status::WGPUBufferMapAsyncStatus, userData)
+function bufferCallback(status::WGPUMapAsyncStatus, userData)
     asyncstatus[] = status
     return nothing
 end
@@ -18,25 +18,28 @@ end
 function mapRead(gpuBuffer::GPUBuffer)
     bufferSize = gpuBuffer.size
     buffercallback =
-        @cfunction(bufferCallback, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
+        @cfunction(bufferCallback, Cvoid, (WGPUMapAsyncStatus, Ptr{Cvoid}))
     # Prepare
     data = convert(Ptr{UInt8}, Libc.malloc(bufferSize))
+
+    buffercallbackInfo = WGPUBufferMapCallbackInfo |> CStruct
+    buffercallbackInfo.callback = buffercallback
+
     wgpuBufferMapAsync(
         gpuBuffer.internal[],
         WGPUMapMode_Read,
         0,
         bufferSize,
-        buffercallback,
-        C_NULL,
+        buffercallbackInfo |> concrete,
     )
     wgpuDevicePoll(gpuBuffer.device.internal[], true, C_NULL)
 
-    if asyncstatus[] != WGPUBufferMapAsyncStatus_Success
+    if asyncstatus[] != WGPUMapAsyncStatus_Success
         @error "Couldn't read buffer data : $asyncstatus"
-        asyncstatus[] = WGPUBufferMapAsyncStatus(3)
+        asyncstatus[] = WGPUMapAsyncStatus(3)
     end
 
-    asyncstatus[] = WGPUBufferMapAsyncStatus(0)
+    asyncstatus[] = WGPUMapAsyncStatus(0)
 
     src_ptr =
         convert(Ptr{UInt8}, wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize))
@@ -51,24 +54,26 @@ function mapWrite(gpuBuffer::GPUBuffer, data)
     bufferSize = gpuBuffer.size
     @assert sizeof(data) == bufferSize
     buffercallback =
-        @cfunction(bufferCallback, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
+        @cfunction(bufferCallback, Cvoid, (WGPUMapAsyncStatus, Ptr{Cvoid}))
+
+    buffercallbackInfo = WGPUBufferMapCallbackInfo |> CStruct
+    buffercallbackInfo.callback = buffercallback
 
     wgpuBufferMapAsync(
         gpuBuffer.internal[],
         WGPUMapMode_Write,
         0,
         bufferSize,
-        buffercallback,
-        C_NULL,
+        buffercallbackInfo |> concrete,
     )
     wgpuDevicePoll(gpuBuffer.device.internal, true)
 
-    if asyncstatus[] != WGPUBufferMapAsyncStatus_Success
+    if asyncstatus[] != WGPUMapAsyncStatus_Success
         @error "Couldn't write buffer data: $asyncstatus"
-        asyncstatus[] = WGPUBufferMapAsyncStatus(3)
+        asyncstatus[] = WGPUMapAsyncStatus(3)
     end
 
-    asyncstatus[] = WGPUBufferMapAsyncStatus(0)
+    asyncstatus[] = WGPUMapAsyncStatus(0)
 
     src_ptr = wgpuBufferGetMappedRange(gpuBuffer.internal[], 0, bufferSize)
     src_ptr = convert(Ptr{UInt8}, src_ptr)
@@ -80,8 +85,8 @@ function mapWrite(gpuBuffer::GPUBuffer, data)
 end
 
 function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
-    labelPtr = toCString(label)
-    @tracepoint "bufferDesc" desc = cStruct(
+    labelPtr = toWGPUString(label)
+    desc = cStruct(
         WGPUBufferDescriptor;
         label = labelPtr,
         size = bufSize,

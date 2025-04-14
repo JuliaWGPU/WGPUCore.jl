@@ -1,5 +1,5 @@
 using WGPUCore
-using WGPUCore: toCString
+using WGPUCore: toWGPUString
 using WGPUNative
 
 b = rand(UInt8, 23);
@@ -23,7 +23,7 @@ function getDesc()
 	a = cStruct(
 	    WGPUShaderModuleDescriptor;
 	    nextInChain = wgslDescriptor |> ptr,
-	    label = toCString(name),
+	    label = toWGPUString(name),
 	)
 	
 end

@@ -15,7 +15,7 @@ function getAdapterCallback(adapter::Ref{WGPUAdapter})
     function request_adapter_callback(
         status::WGPURequestAdapterStatus,
         returnAdapter::WGPUAdapter,
-        message::Ptr{Cchar},
+        message::WGPUStringView,
         userData::Ptr{Cvoid},
     )
         global adapter
@@ -23,7 +23,7 @@ function getAdapterCallback(adapter::Ref{WGPUAdapter})
         if status == WGPURequestAdapterStatus_Success
             adapter[] = returnAdapter
         elseif message != C_NULL
-            @error unsafe_string(message)
+            @error unsafe_string(message.data, message.length)
         end
         return nothing
     end
@@ -40,7 +40,7 @@ function requestAdapter(;
     backendType = getDefaultBackendType()
 
     adapterOptions = cStruct(WGPURequestAdapterOptions)
-	if (typeof(canvas) == FallbackCanvas) || (canvas == nothing)
+	if (typeof(canvas) == FallbackCanvas) || (canvas === nothing)
     	adapterOptions.compatibleSurface = C_NULL
     else
     	adapterOptions.compatibleSurface = canvas.surfaceRef[]
@@ -51,27 +51,33 @@ function requestAdapter(;
     requestAdapterCallback = @cfunction(
         getAdapterCallback(adapter),
         Cvoid,
-        (WGPURequestAdapterStatus, WGPUAdapter, Ptr{Cchar}, Ptr{Cvoid})
+        (WGPURequestAdapterStatus, WGPUAdapter, WGPUStringView, Ptr{Cvoid})
     )
+
+    callbackInfo = WGPURequestAdapterCallbackInfo |> CStruct
+    callbackInfo.nextInChain = C_NULL
+    callbackInfo.userdata1 = adapter[]
+    callbackInfo.callback = requestAdapterCallback
 
     ## request adapter 
     instance = getWGPUInstance()
     
     wgpuInstanceRequestAdapter(
         instance[], 
-        adapterOptions |> ptr, 
-        requestAdapterCallback,
-        C_NULL
+        C_NULL, 
+        callbackInfo |> concrete,
     )
 
     @assert adapter[] != C_NULL
 
-    properties = cStruct(WGPUAdapterProperties)
+    infos = cStruct(WGPUAdapterInfo)
 
-    wgpuAdapterGetProperties(adapter[], properties |> ptr)
+    wgpuAdapterGetInfo(adapter[], infos |> ptr)
 
-    supportedLimits = cStruct(WGPUSupportedLimits)
-    cLimits = supportedLimits.limits
+    nativeLimits = WGPUNativeLimits |> CStruct
+
+    supportedLimits = cStruct(WGPULimits)
+    supportedLimits.nextInChain = nativeLimits.chain.next
 
     wgpuAdapterGetLimits(adapter[], supportedLimits |> ptr)
 
@@ -80,9 +86,9 @@ function requestAdapter(;
         "WGPU",
         features,
         adapter,
-        cLimits,
+        nativeLimits,
         supportedLimits,
-        properties,
+        infos,
         adapterOptions,
         backendType
     )

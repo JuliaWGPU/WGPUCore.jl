@@ -72,7 +72,7 @@ function createTexture(
     
     textureDesc = cStruct(
             WGPUTextureDescriptor;
-            label = toCString(label),
+            label = toWGPUString(label),
             size = textureExtent |> concrete,
             mipLevelCount = mipLevelCount,
             sampleCount = sampleCount,
@@ -123,7 +123,7 @@ function createView(gpuTexture::GPUTexture; dimension = nothing)
     viewDescriptor =
         cStruct(
             WGPUTextureViewDescriptor;
-            label = toCString(gpuTexture.label),
+            label = toWGPUString(gpuTexture.label),
             format = gpuTexture.texInfo["format"],
             dimension = dimension,
             aspect = WGPUTextureAspect_All,
@@ -169,7 +169,7 @@ function createSampler(
 )
 	desc = cStruct(
         WGPUSamplerDescriptor;
-        label = toCString(label),
+        label = toWGPUString(label),
         addressModeU = addressModeU,
         addressModeV = addressModeV,
         addressModeW = addressModeW,
@@ -367,7 +367,7 @@ function createBindGroupLayout(gpuDevice, label, entries)
     if count > 0
 		bindGroupLayoutDesc = cStruct(
 	       WGPUBindGroupLayoutDescriptor;
-	       label = toCString(label),
+	       label = toWGPUString(label),
 	       entries = count == 0 ? C_NULL : entries.cEntries |> pointer, # assuming array of entries
 	       entryCount = count,
 	   	)
@@ -423,7 +423,7 @@ function createBindGroup(label, gpuDevice, bindingLayout, entries)
     if bindingLayout.internal[] != C_NULL && count > 0
         bindGroupDesc = GC.@preserve label cStruct(
 	        WGPUBindGroupDescriptor;
-	        label = toCString(label),
+	        label = toWGPUString(label),
 	        layout = bindingLayout.internal[],
 	        entries = count == 0 ? C_NULL : entries.cEntries |> pointer,
 	        entryCount = count,
@@ -481,7 +481,7 @@ function createPipelineLayout(gpuDevice, label, bindingLayouts, bindings)
     end 
     pipelineDescriptor = GC.@preserve bindGroupLayoutArray label cStruct(
         WGPUPipelineLayoutDescriptor;
-        label = toCString(label),
+        label = toWGPUString(label),
         bindGroupLayouts = layoutCount == 0 ? C_NULL : bindGroupLayoutArray |> pointer,
         bindGroupLayoutCount = layoutCount,
     )
@@ -517,7 +517,7 @@ function createComputeStage(shaderModule, entryPoint::String)
     computeStage = cStruct(
         WGPUProgrammableStageDescriptor;
         _module = shaderModule.internal[],
-        entryPoint = toCString(entryPoint),
+        entryPoint = toWGPUString(entryPoint),
     )
     return ComputeStage(computeStage, entryPoint)
 end
@@ -525,7 +525,7 @@ end
 function createComputePipeline(gpuDevice, label, pipelinelayout, computeStage)
 	desc =	cStruct(
         WGPUComputePipelineDescriptor;
-        label = toCString(label),
+        label = toWGPUString(label),
         layout = pipelinelayout.internal[],
         compute = computeStage.internal |> concrete,
     )
@@ -624,7 +624,7 @@ function createEntry(::Type{GPUVertexState}; args...)
     aRef = GC.@preserve entryPointArg bufferDescArrayPtr cStruct(
         WGPUVertexState;
         _module = shaderInternal[],
-        entryPoint = toCString(entryPointArg),
+        entryPoint = toWGPUString(entryPointArg),
         buffers = length(buffers) == 0 ? C_NULL : bufferDescArrayPtr,
         bufferCount = length(buffers),
     )
@@ -681,7 +681,7 @@ function createEntry(::Type{GPUDepthStencilState}; args...)
 	a = CStruct(WGPUDepthStencilState)
     if length(args) > 0 && args != C_NULL
 	    a.format = args[:format]
-	    a.depthWriteEnabled = args[:depthWriteEnabled]
+	    a.depthWriteEnabled = WGPUOptionalBool(args[:depthWriteEnabled])
 	    a.depthCompare = args[:depthCompare]
 	    a.stencilReadMask = get(args, :stencilReadMask, 0xffffffff)
 	    a.stencilWriteMask = get(args, :stencilWriteMask, 0xffffffff)
@@ -788,7 +788,7 @@ function createEntry(::Type{GPUFragmentState}; args...)
     aref = GC.@preserve entryPointArg ctargets shader cStruct(
         WGPUFragmentState;
         _module = shader.internal[],
-        entryPoint = toCString(entryPointArg),
+        entryPoint = toWGPUString(entryPointArg),
         targets = ctargets,
         targetCount = targetsLen,
     ) 
@@ -843,7 +843,7 @@ function createRenderPipeline(
 
     pipelineDesc = GC.@preserve vertexState primitiveState depthStencilState multiSampleState fragmentState label  cStruct(
         WGPURenderPipelineDescriptor;
-        label = toCString(label),
+        label = toWGPUString(label),
         layout = pipelinelayout.internal[],
         vertex = vertexState[] |> concrete,
         primitive = primitiveState[] |> concrete,
@@ -1004,7 +1004,7 @@ end
 function createCommandEncoder(gpuDevice, label)
     cmdEncDesc = GC.@preserve label cStruct(
         WGPUCommandEncoderDescriptor;
-        label = toCString(label),
+        label = toWGPUString(label),
     )
     commandEncoder =
         wgpuDeviceCreateCommandEncoder(
@@ -1021,7 +1021,7 @@ function beginComputePass(
 )
     desc =
         GC.@preserve label cStruct(
-        	WGPUComputePassDescriptor; label = toCString(label)
+        	WGPUComputePassDescriptor; label = toWGPUString(label)
        	)
     computePass = wgpuCommandEncoderBeginComputePass(cmdEncoder.internal[], desc |> ptr) |> Ref
     GPUComputePassEncoder(label, computePass, cmdEncoder, desc)
@@ -1046,7 +1046,7 @@ function beginRenderPass(
     # Both color and depth attachments requires pointer
     desc = GC.@preserve label cStruct(
         WGPURenderPassDescriptor;
-        label = toCString(label),
+        label = toWGPUString(label),
         colorAttachments = let ca = colorAttachmentsIn
             length(ca.internal[]) > 0 ? ca.internal[] : C_NULL
         end,
@@ -1100,16 +1100,16 @@ function copyBufferToTexture(
     cOrigin = cStruct(WGPUOrigin3D; origin...)
     cDestination =
         cStruct(
-            WGPUImageCopyTexture;
+            WGPUTexelCopyTextureInfo;
             texture = source[:texture].internal[],
             mipLevel = get(source, :mipLevel, 0),
             origin = cOrigin |> concrete,
             aspect = getEnum(WGPUTextureAspect, "All"),
         )
-    texLayout = cStruct(WGPUTextureDataLayout; destination[:layout]...)
+    texLayout = cStruct(WGPUTexelCopyBufferLayout; destination[:layout]...)
     cSource =
         cStruct(
-            WGPUImageCopyBuffer;
+            WGPUTexelCopyBufferInfo;
             buffer = destination[:buffer].internal[],
             layout = texLayout |> concrete,
         )
@@ -1138,19 +1138,19 @@ function copyTextureToBuffer(
     cOrigin = cStruct(WGPUOrigin3D; origin...)
     cSource =
         cStruct(
-            WGPUImageCopyTexture;
+            WGPUTexelCopyTextureInfo;
             texture = source[:texture].internal[],
             mipLevel = get(source, :mipLevel, 0),
             origin = cOrigin |> concrete,
             aspect = getEnum(WGPUTextureAspect, "All"),
         )
    	textureLayout =	cStruct(
-            WGPUTextureDataLayout;
+            WGPUTexelCopyBufferLayout;
             destination[:layout]..., # should document these obscure
         )
     cDestination =
         cStruct(
-            WGPUImageCopyBuffer;
+            WGPUTexelCopyBufferInfo;
             buffer = destination[:buffer].internal[],
             layout = textureLayout  |> concrete,
         )
@@ -1175,7 +1175,7 @@ function copyTextureToTexture(
 
     cSource =
         cStruct(
-            WGPUImageCopyTexture;
+            WGPUTexelCopyTextureInfo;
             texture = source[:texture].internal[],
             mipLevel = get(source, :mipLevel, 0),
             origin = cOrigin1  |> concrete,
@@ -1187,7 +1187,7 @@ function copyTextureToTexture(
 
     cDestination =
         cStruct(
-            WGPUImageCopyTexture;
+            WGPUTexelCopyTextureInfo;
             texture = destination[:texture].internal[],
             mipLevel = get(destination, :mipLevel, 0),
             origin = cOrigin2  |> concrete,
@@ -1205,7 +1205,7 @@ function copyTextureToTexture(
 end
 
 function finish(cmdEncoder::GPUCommandEncoder; label = " CMD ENCODER COMMAND BUFFER ")
-	desc = cStruct(WGPUCommandBufferDescriptor; label = toCString(label))
+	desc = cStruct(WGPUCommandBufferDescriptor; label = toWGPUString(label))
     cmdEncoderFinish = wgpuCommandEncoderFinish(
         cmdEncoder.internal[],
         desc |> ptr,
@@ -1292,6 +1292,7 @@ end
 
 function endComputePass(computePass::GPUComputePassEncoder)
     wgpuComputePassEncoderEnd(computePass.internal[])
+    wgpuComputePassEncoderRelease(computePass.internal[])
 end
 
 function setViewport(
@@ -1406,6 +1407,7 @@ end
 
 function endEncoder(renderPass::GPURenderPassEncoder)
     wgpuRenderPassEncoderEnd(renderPass.internal[])
+    wgpuRenderPassEncoderRelease(renderPass.internal[])
 end
 
 function submit(queue::GPUQueue, commandBuffers)
@@ -1431,7 +1433,7 @@ function writeTexture(queue::GPUQueue; args...)
 
     destination =
         cStruct(
-            WGPUImageCopyTexture;
+            WGPUTexelCopyTextureInfo;
             texture = texture.internal[],
             mipLevel = mipLevel,
             origin = cOrigin[],
@@ -1443,7 +1445,7 @@ function writeTexture(queue::GPUQueue; args...)
     end
     cDataLayout =
         cStruct(
-            WGPUTextureDataLayout;
+            WGPUTexelCopyBufferLayout;
             offset = offset,
             bytesPerRow = bytesPerRow,
             rowsPerImage = rowsPerImage,

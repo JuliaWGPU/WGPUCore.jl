@@ -27,69 +27,80 @@ shader = wgpuDeviceCreateShaderModule(
 )
 
 ## StagingBuffer 
+stagingLabel = "StagingBuffer"
 
 stagingBuffer = wgpuDeviceCreateBuffer(
-                    device.internal[], 
-                    cStruct(
-                        WGPUBufferDescriptor;
-                        nextInChain = C_NULL,
-                        label = toCString("StagingBuffer"),
-                        usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
-                        size = sizeof(numbers),
-                        mappedAtCreation = false
-                    ) |> ptr
-                )
+    device.internal[],
+    cStruct(
+        WGPUBufferDescriptor;
+        nextInChain = C_NULL,
+        label = WGPUStringView(pointer(stagingLabel), length(stagingLabel)),
+        usage = (WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst) |> WGPUBufferUsage,
+        size = sizeof(numbers),
+        mappedAtCreation = false
+    ) |> ptr
+)
 ## StorageBuffer 
-
+storageLabel = "StorageBuffer"
 storageBuffer = wgpuDeviceCreateBuffer(
-                    device.internal[], 
-                    cStruct(
-                        WGPUBufferDescriptor;
-                        nextInChain = C_NULL,
-                        label = toCString("StorageBuffer"),
-                        usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst | WGPUBufferUsage_CopySrc,
-                        size = sizeof(numbers),
-                        mappedAtCreation = false
-                    ) |> ptr
-                )
+    device.internal[], 
+    cStruct(
+        WGPUBufferDescriptor;
+        nextInChain = C_NULL,
+        label = WGPUStringView(pointer(storageLabel), length(storageLabel)),
+        usage = WGPUBufferUsage( WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst | WGPUBufferUsage_CopySrc ),
+        size = sizeof(numbers),
+        mappedAtCreation = false
+    ) |> ptr
+)
 
+entries = WGPUBindGroupLayoutEntry[]
+
+entry = WGPUBindGroupLayoutEntry |> CStruct 
+
+
+entries = cStruct(
+    WGPUBindGroupLayoutEntry;
+    nextInChain = C_NULL,
+    binding = 0,
+    visibility = WGPUShaderStage_Compute,
+    buffer = cStruct(
+        WGPUBufferBindingLayout;
+        type=WGPUBufferBindingType_Storage
+    ) |> concrete,
+    sampler = cStruct(
+        WGPUSamplerBindingLayout;
+    ) |> concrete,
+    texture = cStruct(
+        WGPUTextureBindingLayout;
+    ) |> concrete,
+    storageTexture = cStruct(
+        WGPUStorageTextureBindingLayout;        
+    ) |> concrete
+)
+
+bglayoutDescLabel = "Bind Group Layout"
+layoutdesc = cStruct(
+    WGPUBindGroupLayoutDescriptor;
+    label = WGPUStringView(pointer(bglayoutDescLabel), length(bglayoutDescLabel)),
+    entries = entries |> ptr,
+    entryCount = 1
+) 
 
 ## BindGroupLayout
 bindGroupLayout = wgpuDeviceCreateBindGroupLayout(
     device.internal[],
-    cStruct(
-        WGPUBindGroupLayoutDescriptor;
-        label = toCString("Bind Group Layout"),
-        entries = cStruct(
-            WGPUBindGroupLayoutEntry;
-            nextInChain = C_NULL,
-            binding = 0,
-            visibility = WGPUShaderStage_Compute,
-            buffer = cStruct(
-                WGPUBufferBindingLayout;
-                type=WGPUBufferBindingType_Storage
-            ) |> concrete,
-            sampler = cStruct(
-                WGPUSamplerBindingLayout;
-            ) |> concrete,
-            texture = cStruct(
-                WGPUTextureBindingLayout;
-            ) |> concrete,
-            storageTexture = cStruct(
-                WGPUStorageTextureBindingLayout;        
-            ) |> concrete
-        ) |> ptr,
-        entryCount = 1
-    ) |> ptr
+    layoutdesc |> ptr
 )
 
 ## BindGroup
 
+bgLabel = "Bind Group"
 bindGroup = wgpuDeviceCreateBindGroup(
     device.internal[],
     cStruct(
         WGPUBindGroupDescriptor;
-        label = toCString("Bind Group"),
+        label = WGPUStringView(pointer(bgLabel), length(bgLabel)),
         layout = bindGroupLayout,
         entries = cStruct(
             WGPUBindGroupEntry;
@@ -119,15 +130,16 @@ pipelineLayout = wgpuDeviceCreatePipelineLayout(
 
 ## TODO fix
 
+computeLabel = "compute main"
 compute = cStruct(
     WGPUProgrammableStageDescriptor;
     _module = shader,
-    entryPoint = toCString("main")
+    entryPoint = WGPUStringView(pointer(computeLabel), length(computeLabel))
 ) |> concrete
 
 
 ## compute pipeline
-
+computePipelineLabel = "main"
 computePipeline = wgpuDeviceCreateComputePipeline(
     device.internal[],
     cStruct(
@@ -136,28 +148,29 @@ computePipeline = wgpuDeviceCreateComputePipeline(
         compute = cStruct(
             WGPUProgrammableStageDescriptor;
             _module = shader,
-            entryPoint = toCString("main")
+            entryPoint = WGPUStringView(pointer(computePipelineLabel), length(computePipelineLabel))
         ) |> concrete
     ) |> ptr
 )
 
 ## encoder
-
+cmdEncoderLabel = "Command Encoder"
 encoder = wgpuDeviceCreateCommandEncoder(
             device.internal[],
             cStruct(
                 WGPUCommandEncoderDescriptor;
-                label = toCString("Command Encoder")
+                label = WGPUStringView(pointer(cmdEncoderLabel), length(cmdEncoderLabel))
             ) |> ptr
         )
 
 
 ## computePass
+computePassLabel = "Compute Pass"
 computePass = wgpuCommandEncoderBeginComputePass(
     encoder,
     cStruct(
         WGPUComputePassDescriptor;
-        label = toCString("Compute Pass")
+        label = WGPUStringView(pointer(computePassLabel), length(computePassLabel))
     ) |> ptr
 )
 
@@ -167,6 +180,7 @@ wgpuComputePassEncoderSetPipeline(computePass, computePipeline)
 wgpuComputePassEncoderSetBindGroup(computePass, 0, bindGroup, 0, C_NULL)
 wgpuComputePassEncoderDispatchWorkgroups(computePass, length(numbers), 1, 1)
 wgpuComputePassEncoderEnd(computePass)
+wgpuComputePassEncoderRelease(computePass)
 
 ## buffer copy buffer
 wgpuCommandEncoderCopyBufferToBuffer(encoder, storageBuffer, 0, stagingBuffer, 0, sizeof(numbers))
@@ -191,18 +205,20 @@ wgpuQueueSubmit(queue, 1, Ref(cmdBuffer))
 
 ## MapAsync
 
-asyncstatus = Ref(WGPUBufferMapAsyncStatus(3))
+asyncstatus = Ref(WGPUMapAsyncStatus(3))
 
 function readBufferMap(
-        status::WGPUBufferMapAsyncStatus,
+        status::WGPUMapAsyncStatus,
         userData)
     asyncstatus[] = status
     return nothing
 end
 
-readbuffermap = @cfunction(readBufferMap, Cvoid, (WGPUBufferMapAsyncStatus, Ptr{Cvoid}))
+readbuffermap = @cfunction(readBufferMap, Cvoid, (WGPUMapAsyncStatus, Ptr{Cvoid}))
+readBufferMapInfo = WGPUBufferMapCallbackInfo |> CStruct
+readBufferMapInfo.callback = readbuffermap
 
-wgpuBufferMapAsync(stagingBuffer, WGPUMapMode_Read, 0, sizeof(numbers), readbuffermap, C_NULL)
+wgpuBufferMapAsync(stagingBuffer, WGPUMapMode_Read, 0, sizeof(numbers), readBufferMapInfo |> concrete)
 
 print(asyncstatus[])
 
