@@ -679,7 +679,7 @@ function createEntry(::Type{GPUDepthStencilState}; args...)
 	a = CStruct(WGPUDepthStencilState)
     if length(args) > 0 && args != C_NULL
 	    a.format = args[:format]
-	    a.depthWriteEnabled = args[:depthWriteEnabled]
+	    a.depthWriteEnabled = WGPUOptionalBool(args[:depthWriteEnabled])
 	    a.depthCompare = args[:depthCompare]
 	    a.stencilReadMask = get(args, :stencilReadMask, 0xffffffff)
 	    a.stencilWriteMask = get(args, :stencilWriteMask, 0xffffffff)
