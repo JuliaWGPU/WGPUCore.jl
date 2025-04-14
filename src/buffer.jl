@@ -93,7 +93,7 @@ function createBuffer(label, gpuDevice, bufSize, usage, mappedAtCreation)
         usage = getEnum(WGPUBufferUsage, usage),
         mappedAtCreation = mappedAtCreation,
     )
-    @tracepoint "CreateBuffer" buffer = wgpuDeviceCreateBuffer(
+    buffer = wgpuDeviceCreateBuffer(
         gpuDevice.internal[],
         desc |> ptr,
     )
